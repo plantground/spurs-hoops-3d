@@ -27,6 +27,11 @@
   #msg { position: absolute; top: 27%; left: 50%; transform: translateX(-50%); font-size: 46px; font-weight: 900; letter-spacing: 1px; text-shadow: 0 4px 18px rgba(0,0,0,.8), 0 0 2px #000; opacity: 0; transition: opacity .25s; white-space: nowrap; }
   #sub { position: absolute; top: calc(27% + 58px); left: 50%; transform: translateX(-50%); font-size: 19px; font-weight: 700; color: #dfe6ff; text-shadow: 0 2px 10px #000; opacity: 0; transition: opacity .25s; white-space: nowrap; }
   #subline { position: absolute; top: 140px; left: 50%; transform: translateX(-50%); background: rgba(10,12,20,.85); border: 1px solid #47507a; border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 700; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+  #moveline { position: absolute; top: 62%; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: 900; font-style: italic; text-shadow: 0 2px 10px #000, 0 0 2px #000; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+  #breakBox { position: absolute; top: 150px; left: 50%; transform: translateX(-50%); background: rgba(10,12,20,.88); border: 1px solid #ffd21f; border-radius: 12px; padding: 10px 22px; text-align: center; display: none; }
+  #breakTitle { font-size: 18px; font-weight: 900; color: #ffd21f; }
+  #breakTime { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  #breakSub { font-size: 12.5px; color: #c9d1ea; }
   #meterWrap { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); width: 260px; height: 18px; background: rgba(0,0,0,.6); border: 2px solid #fff; border-radius: 9px; overflow: hidden; display: none; }
   #meterZone { position: absolute; left: 72%; width: 16%; top: 0; bottom: 0; background: rgba(60,255,120,.45); }
   #meterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg,#ffd21f,#ff8a00); }
@@ -74,6 +79,8 @@
   <div id="shotclock">24</div>
   <div id="handler"></div>
   <div id="subline"></div>
+  <div id="breakBox"><div id="breakTitle"></div><div id="breakTime"></div><div id="breakSub"></div></div>
+  <div id="moveline"></div>
   <div id="msg"></div>
   <div id="sub"></div>
   <div id="meterWrap"><div id="meterZone"></div><div id="meterFill"></div></div>
@@ -96,7 +103,9 @@
       <div><kbd>W A S D</kbd> / 방향키 : 이동 · <kbd>Shift</kbd> 터보</div>
       <div><b>점프볼</b> : 공이 최고점일 때 <kbd>Space</kbd></div>
       <div><b>공격</b> <kbd>Space</kbd> 꾹 → 초록 구간에서 떼기 = 슛</div>
-      <div>골밑에서 <kbd>Space</kbd> : 덩크 / 레이업</div>
+      <div>골밑에서 <kbd>Space</kbd> : 덩크 / 레이업 (선수별 덩크 스타일)</div>
+      <div><kbd>Q</kbd> 개인기 (크로스오버·레그스루·스핀·유로스텝 등, 방향키와 함께) · <kbd>F</kbd> 스텝백</div>
+      <div><kbd>T</kbd> 작전타임 (경기당 5개, 우리 공·볼데드 때)</div>
       <div><kbd>E</kbd> 패스(이동 방향 쪽) · <kbd>1</kbd>~<kbd>4</kbd> 지정 패스</div>
       <div>공 없을 때 / 인바운드 때 <kbd>E</kbd> : 공 달라고 요청</div>
       <div><b>수비</b> <kbd>Space</kbd> 점프·블록 · <kbd>E</kbd> 스틸 (무리하면 파울!)</div>

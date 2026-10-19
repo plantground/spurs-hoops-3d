@@ -99,3 +99,45 @@ export const TEAMS = {
     P('Anthony Davis', 3, 208, 91, 0.75, 1.08, 4, 'buzz', 'k', 'b', 'uni sleeveL long')],
     bench: [P("D'Angelo Russell", 5, 193, 77, 1.05, 0.96, 3, 'fade', 'k', 's', 'tatA'), P('Dereck Lively II', 2, 216, 77, 0.2, 0.95, 4, 'short', 'k', 'n'), P('Naji Marshall', 13, 201, 75, 0.85, 1.04, 4, 'buzz', 'k', 'b')] },
 };
+
+// 선수별 개인기 (moves: 드리블 무브, shots: 슛 종류, dunks: 덩크 종류, tag: 화면 표시용 별명)
+// moves: cross 크로스오버, btl 비하인드더레그, behind 비하인드백, hesi 헤지테이션, spin 스핀, euro 유로스텝, stepback 스텝백, jab 잽스텝
+// shots: jumper, pullup, fade 페이드어웨이, stepback 스텝백, hook 훅슛, floater 플로터
+// dunks: oneHand, twoHand, tomahawk, windmill
+export const SIGNATURE = {
+  'Victor Wembanyama': { moves: ['spin', 'stepback', 'euro', 'btl'], shots: ['fade', 'stepback', 'hook', 'pullup'], dunks: ['oneHand', 'tomahawk', 'twoHand'], tag: '에일리언 · 스텝백 & 스핀' },
+  "De'Aaron Fox": { moves: ['hesi', 'cross', 'spin', 'euro'], shots: ['floater', 'pullup'], dunks: ['oneHand', 'tomahawk'], tag: '스피드 돌파' },
+  'Stephon Castle': { moves: ['euro', 'cross', 'spin'], shots: ['pullup', 'floater'], dunks: ['twoHand', 'tomahawk'] },
+  'Devin Vassell': { moves: ['btl', 'hesi', 'stepback'], shots: ['fade', 'pullup'], dunks: ['oneHand'] },
+  'Harrison Barnes': { moves: ['jab', 'cross'], shots: ['pullup', 'fade'], dunks: ['twoHand'] },
+  'Dylan Harper': { moves: ['hesi', 'euro', 'btl'], shots: ['floater', 'pullup'], dunks: ['oneHand', 'windmill'] },
+  'Luka Dončić': { moves: ['stepback', 'hesi', 'btl', 'behind'], shots: ['stepback', 'fade', 'floater'], dunks: ['twoHand'], tag: '스텝백 3점' },
+  'LeBron James': { moves: ['spin', 'cross', 'euro'], shots: ['fade', 'pullup'], dunks: ['tomahawk', 'twoHand', 'windmill'], tag: '킹 · 토마호크' },
+  'Austin Reaves': { moves: ['hesi', 'stepback'], shots: ['floater', 'stepback'], dunks: ['oneHand'] },
+  'Stephen Curry': { moves: ['btl', 'behind', 'cross', 'stepback'], shots: ['pullup', 'stepback'], dunks: ['oneHand'], tag: '딥 쓰리 · 드리블 콤보' },
+  'Jimmy Butler': { moves: ['jab', 'spin'], shots: ['fade', 'pullup'], dunks: ['twoHand'] },
+  'Giannis Antetokounmpo': { moves: ['euro', 'spin'], shots: ['hook', 'pullup'], dunks: ['twoHand', 'tomahawk', 'windmill'], tag: '그리스 괴인 · 유로스텝' },
+  'Nikola Jokić': { moves: ['jab', 'spin'], shots: ['hook', 'fade', 'floater'], dunks: ['twoHand'], tag: '훅슛 & 원풋 페이더웨이' },
+  'Jamal Murray': { moves: ['hesi', 'btl', 'stepback'], shots: ['floater', 'fade', 'pullup'], dunks: ['oneHand'] },
+  'Aaron Gordon': { moves: ['spin'], shots: ['hook'], dunks: ['windmill', 'tomahawk', 'twoHand'] },
+  'Kyrie Irving': { moves: ['btl', 'behind', 'cross', 'spin', 'hesi'], shots: ['floater', 'fade', 'stepback'], dunks: ['oneHand'], tag: '앵클 브레이커' },
+  'Anthony Davis': { moves: ['spin', 'jab'], shots: ['hook', 'fade', 'pullup'], dunks: ['twoHand', 'tomahawk'] },
+  'Cooper Flagg': { moves: ['euro', 'spin', 'cross'], shots: ['pullup', 'fade'], dunks: ['tomahawk', 'windmill'] },
+  'Klay Thompson': { moves: ['jab'], shots: ['pullup', 'jumper'], dunks: ['oneHand'] },
+  'Joel Embiid': { moves: ['jab', 'spin'], shots: ['fade', 'hook'], dunks: ['twoHand'], tag: '드림 셰이크' },
+  'Tyrese Maxey': { moves: ['cross', 'hesi', 'euro'], shots: ['floater', 'pullup'], dunks: ['oneHand'] },
+  'VJ Edgecombe': { moves: ['euro', 'cross'], shots: ['pullup'], dunks: ['windmill', 'tomahawk'] },
+  'Paul George': { moves: ['btl', 'stepback'], shots: ['stepback', 'fade'], dunks: ['tomahawk'] },
+  'Jalen Brunson': { moves: ['hesi', 'spin', 'jab'], shots: ['fade', 'floater'], dunks: ['oneHand'], tag: '피벗 마스터' },
+  'Karl-Anthony Towns': { moves: ['jab', 'spin'], shots: ['pullup', 'hook'], dunks: ['twoHand'] },
+  'Jayson Tatum': { moves: ['stepback', 'btl', 'jab'], shots: ['stepback', 'fade'], dunks: ['tomahawk'] },
+  'Jaylen Brown': { moves: ['spin', 'euro', 'cross'], shots: ['pullup'], dunks: ['tomahawk', 'windmill'] },
+  'Devin Booker': { moves: ['jab', 'hesi', 'btl'], shots: ['fade', 'pullup'], dunks: ['oneHand'], tag: '미드레인지 장인' },
+  'Jalen Green': { moves: ['cross', 'euro'], shots: ['pullup'], dunks: ['windmill', 'tomahawk'] },
+  'Tyler Herro': { moves: ['hesi', 'stepback'], shots: ['stepback', 'floater'], dunks: ['oneHand'] },
+  'Bam Adebayo': { moves: ['spin'], shots: ['hook', 'floater'], dunks: ['twoHand'] },
+  'Kyle Kuzma': { moves: ['jab', 'spin'], shots: ['fade'], dunks: ['tomahawk'] },
+  'Mikal Bridges': { moves: ['jab'], shots: ['pullup', 'fade'], dunks: ['oneHand'] },
+  'Kevin Porter Jr.': { moves: ['btl', 'behind', 'stepback'], shots: ['stepback', 'fade'], dunks: ['windmill'] },
+  "D'Angelo Russell": { moves: ['hesi', 'btl'], shots: ['floater', 'pullup'], dunks: ['oneHand'] },
+};
