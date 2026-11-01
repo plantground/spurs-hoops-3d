@@ -9,7 +9,7 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #07080d; font-family: "Segoe UI", "Malgun Gothic", sans-serif; color: #fff; user-select: none; }
   canvas { display: block; }
   kbd { background: #2a3149; border: 1px solid #47507a; border-radius: 4px; padding: 0 5px; font-family: inherit; font-size: 11.5px; color: #fff; }
-  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
   #board { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; background: rgba(10,12,20,.9); border: 1px solid #333a4d; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
   .tm { display: flex; flex-direction: column; justify-content: center; padding: 4px 14px; }
   .tm .top { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; }
@@ -32,6 +32,16 @@
   #breakTitle { font-size: 18px; font-weight: 900; color: #ffd21f; }
   #breakTime { font-size: 40px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.1; }
   #breakSub { font-size: 12.5px; color: #c9d1ea; }
+  #chalBox { position: absolute; bottom: 175px; left: 50%; transform: translateX(-50%); background: rgba(40,10,10,.92); border: 2px solid #ff5b5b; border-radius: 12px; padding: 10px 18px; text-align: center; display: none; min-width: 360px; }
+  #chalBox b { color: #ffb4b4; font-size: 17px; } #chalText { font-size: 13px; color: #fde; margin-top: 3px; }
+  #chalBar { height: 4px; background: #4a1a1a; border-radius: 2px; margin-top: 8px; overflow: hidden; } #chalTime { height: 100%; background: #ff5b5b; width: 100%; }
+  #reviewBox { position: absolute; top: 14px; left: 14px; background: rgba(8,8,12,.9); border: 1px solid #555; border-left: 4px solid #ff3b3b; border-radius: 8px; padding: 8px 14px; display: none; z-index: 3; }
+  #reviewTitle { font-weight: 900; font-size: 16px; } #reviewTitle::before { content: '● '; color: #ff3b3b; animation: blink 1s infinite; }
+  #reviewWhat { font-size: 12.5px; color: #c9d1ea; } #reviewStage { font-size: 12px; color: #ffd21f; font-weight: 800; margin-top: 2px; }
+  @keyframes blink { 50% { opacity: .2; } }
+  body.replay::before, body.replay::after { content: ''; position: fixed; left: 0; right: 0; height: 9vh; background: #000; z-index: 2; pointer-events: none; }
+  body.replay::before { top: 0; } body.replay::after { bottom: 0; }
+  body.replay #board, body.replay #shotclock, body.replay #stats, body.replay #keys, body.replay #handler { opacity: 0; }
   #meterWrap { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); width: 260px; height: 18px; background: rgba(0,0,0,.6); border: 2px solid #fff; border-radius: 9px; overflow: hidden; display: none; }
   #meterZone { position: absolute; left: 72%; width: 16%; top: 0; bottom: 0; background: rgba(60,255,120,.45); }
   #meterFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg,#ffd21f,#ff8a00); }
@@ -81,6 +91,8 @@
   <div id="subline"></div>
   <div id="breakBox"><div id="breakTitle"></div><div id="breakTime"></div><div id="breakSub"></div></div>
   <div id="moveline"></div>
+  <div id="chalBox"><b>🚩 코치 챌린지 가능</b><div id="chalText"></div><div id="chalBar"><div id="chalTime"></div></div></div>
+  <div id="reviewBox"><div id="reviewTitle"></div><div id="reviewWhat"></div><div id="reviewStage"></div></div>
   <div id="msg"></div>
   <div id="sub"></div>
   <div id="meterWrap"><div id="meterZone"></div><div id="meterFill"></div></div>
@@ -106,6 +118,7 @@
       <div>골밑에서 <kbd>Space</kbd> : 덩크 / 레이업 (선수별 덩크 스타일)</div>
       <div><kbd>Q</kbd> 개인기 (크로스오버·레그스루·스핀·유로스텝 등, 방향키와 함께) · <kbd>F</kbd> 스텝백</div>
       <div><kbd>T</kbd> 작전타임 (경기당 5개, 우리 공·볼데드 때)</div>
+      <div><kbd>V</kbd> 코치 챌린지 — 우리 팀 파울·아웃 판정 직후 (성공 시 1번 더, 실패 시 작전타임 소진) · 3점 라인 득점은 심판 비디오 판독</div>
       <div><kbd>E</kbd> 패스(이동 방향 쪽) · <kbd>1</kbd>~<kbd>4</kbd> 지정 패스</div>
       <div>공 없을 때 / 인바운드 때 <kbd>E</kbd> : 공 달라고 요청</div>
       <div><b>수비</b> <kbd>Space</kbd> 점프·블록 · <kbd>E</kbd> 스틸 (무리하면 파울!)</div>
@@ -952,7 +965,7 @@ const refs = [0, 1, 2].map(i => new Ref(i));
 const G = {
   state: 'menu', phase: 'live', score: [0, 0], q: 1, qLen: 180, clock: 180, shot: 24, dead: 0, onDead: null, offense: 0, oppKey: null,
   cam: 0, call: 0, meter: null, diff: 1, paused: false, flip: false, teamFouls: [0, 0], front: false, eight: 0, whistled: false,
-  inb: null, ft: null, jb: null, tipWinner: 0, excite: 0.2, crowdMode: '', chantT: 2, autoSub: true, subQ: [], subPanel: false, collCd: 0, keep: [], crowdT: 0, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null,
+  inb: null, ft: null, jb: null, tipWinner: 0, excite: 0.2, crowdMode: '', chantT: 2, autoSub: true, subQ: [], subPanel: false, collCd: 0, keep: [], crowdT: 0, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null,
 };
 let roster = [[], []], teams = [[], []], onCourt = [], T = 0;
 const ball = { pos: V(0, 1, 0), vel: V(), state: 'dead', holder: null, shot: null, pass: null, lastTeam: 0, noGrab: 0, lastPasser: null, passAt: -99, passTime: 0, cut: new Set() };
@@ -979,8 +992,8 @@ function newGame(oppKey) {
   teams = [roster[0].slice(0, 5), roster[1].slice(0, 5)];
   teams.forEach(tm => tm.forEach((p, i) => { p.onCourt = true; p.slot = i; }));
   refreshCourt();
-  Object.assign(G, { score: [0, 0], q: 1, clock: G.qLen, shot: 24, dead: 0, onDead: null, call: 0, meter: null, paused: false, state: 'play', teamFouls: [0, 0], subQ: [], keep: [], excite: 0.4, whistled: false, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null });
-  $('breakBox').style.display = 'none';
+  Object.assign(G, { score: [0, 0], q: 1, clock: G.qLen, shot: 24, dead: 0, onDead: null, call: 0, meter: null, paused: false, state: 'play', teamFouls: [0, 0], subQ: [], keep: [], excite: 0.4, whistled: false, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null });
+  $('breakBox').style.display = 'none'; $('chalBox').style.display = 'none'; $('reviewBox').style.display = 'none'; document.body.classList.remove('replay');
   setSides(false);
   $('oppAb').textContent = oppKey;
   startJumpBall();
@@ -1007,7 +1020,7 @@ function refreshCourt() {
 
 function keysHtml() {
   const mates = teams[0].filter(p => !p.isUser).map((p, i) => `<kbd>${i + 1}</kbd> ${lastName(p.name)}`).join(' &nbsp;');
-  return `<div><kbd>WASD</kbd> 이동 <kbd>Shift</kbd> 터보 <kbd>C</kbd> 카메라 <kbd>Tab</kbd> 교체 <kbd>T</kbd> 작전타임</div>
+  return `<div><kbd>WASD</kbd> 이동 <kbd>Shift</kbd> 터보 <kbd>C</kbd> 카메라 <kbd>Tab</kbd> 교체 <kbd>T</kbd> 작전타임 <kbd>V</kbd> 챌린지</div>
   <div><kbd>Space</kbd> 슛·점프·블록 &nbsp;<kbd>E</kbd> 패스·요청·스틸 &nbsp;<kbd>Q</kbd> 개인기 <kbd>F</kbd> 스텝백</div><div>${mates} &nbsp;<kbd>M</kbd> 소리 <kbd>N</kbd> 해설</div>`;
 }
 
@@ -1035,6 +1048,7 @@ function deadBall(time, next) {
   G.phase = 'dead'; G.dead = time; G.onDead = next; G.whistled = false; G.meter = null;
   for (const p of onCourt) { if (p.shooting && !p.shooting.ftShot) p.shooting = null; p.stance = false; }
   processSubs();
+  if (G.lastCall && G.lastCall.open && T - G.lastCall.t < 6) offerChallenge();
 }
 
 // ───────────────────────── substitutions ─────────────────────────
@@ -1095,14 +1109,15 @@ function updateRefs(dt) {
   const s = sgn(G.offense);
   for (const r of refs) {
     let tg;
-    if (G.phase === 'jump' && r.role === 'center') tg = V(0, 0, 0.95);
+    if (G.phase === 'review') tg = V(-1.2 + refs.indexOf(r) * 1.2, 0, -8.35);
+    else if (G.phase === 'jump' && r.role === 'center') tg = V(0, 0, 0.95);
     else if (r.role === 'lead') tg = V(s * (HX + 0.75), 0, clamp(ball.pos.z * 0.3 - 2.8, -6, 1));
     else if (r.role === 'trail') tg = V(clamp(ball.pos.x - s * 4, -12, 12), 0, HZ + 0.85);
     else tg = V(clamp(ball.pos.x - s * 1.5, -11, 11), 0, -HZ - 0.8);
     const dx = tg.x - r.pos.x, dz = tg.z - r.pos.z, L = Math.hypot(dx, dz);
     const des = L > 0.25 ? V(dx / L * Math.min(5.6, L * 2.5), 0, dz / L * Math.min(5.6, L * 2.5)) : V();
     r.vel.lerp(des, Math.min(1, dt * 5)); r.pos.addScaledVector(r.vel, dt);
-    let look = ball.pos;
+    let look = G.phase === 'review' ? V(r.pos.x, 1, -9.5) : ball.pos;
     if (r.sig) { r.sig.t -= dt; if (r.sig.target) look = r.sig.target.pos; if (r.sig.t <= 0) r.sig = null; }
     const want = Math.atan2(look.x - r.pos.x, look.z - r.pos.z);
     r.face += wrapA(want - r.face) * Math.min(1, dt * 6);
@@ -1127,6 +1142,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') spaceDown();
   if (e.code === 'KeyE') eKey();
   if (e.code === 'KeyT') userTimeout();
+  if (e.code === 'KeyV' && G.chal && G.chal.team === 0) startChallenge(0);
   if ((e.code === 'KeyQ' || e.code === 'KeyF') && G.phase === 'live') userMove(e.code === 'KeyF');
   const u = user();
   if (/^Digit[1-4]$/.test(e.code) && G.phase === 'live' && ball.holder === u && !u.shooting) doPass(u, teams[0].filter(p => !p.isUser)[+e.code.slice(5) - 1]);
@@ -1338,7 +1354,10 @@ function releaseShot(p, q) {
   p.shooting = null;
   if (ball.holder !== p || G.phase !== 'live') return;
   const H = HOOPS[p.team], d = distH(p.pos, H);
-  const three = d > 6.75 || (Math.abs(p.pos.z) > 6.6 && Math.abs(p.pos.x - H.x) < 4.3);
+  const corner = Math.abs(p.pos.z) > 6.6 && Math.abs(p.pos.x - H.x) < 4.3;
+  const trueThree = d > 6.75 || corner;
+  const nearLine = !corner && Math.abs(d - 6.75) < 0.28;
+  const three = nearLine && Math.random() < 0.3 ? !trueThree : trueThree; // 라인 근처는 심판이 헷갈릴 수 있음
   const hp = ball.pos.clone();
   p.box.fga++; if (three) p.box.tpa++;
 
@@ -1402,7 +1421,7 @@ function releaseShot(p, q) {
   ball.vel.set((tgt.x - start.x) / time, (tgt.y - start.y + 0.5 * GRAV * time * time) / time, (tgt.z - start.z) / time);
   const passer = ball.lastPasser && T - ball.passAt < 4 && ball.lastPasser.team === p.team && ball.lastPasser !== p ? ball.lastPasser : null;
   ball.state = 'shot'; ball.holder = null; ball.noGrab = 0.4; ball.lastTeam = p.team;
-  ball.shot = { team: p.team, pts: three ? 3 : 2, shooter: p, make, dunk, kind, passer, foul: fouler ? { by: fouler, fts: three ? 3 : 2 } : null };
+  ball.shot = { team: p.team, pts: three ? 3 : 2, trueThree, line: nearLine, recN: REC.n, pos: p.pos.clone(), shooter: p, make, dunk, kind, passer, foul: fouler ? { by: fouler, fts: three ? 3 : 2 } : null };
   p.follow = dunk ? 0 : 0.55;
   if (fouler) callFoul(fouler, p, 'shoot');
 }
@@ -1447,6 +1466,10 @@ function callFoul(fouler, victim, kind) {
   const out = fouler.pf >= 6;
   if (out) fouler.fouledOut = true;
   const label = { shoot: '슈팅 파울', reach: '리치인 파울', block: '블로킹 파울', offensive: '공격자 파울 (차징)' }[kind];
+  const counted = kind !== 'offensive';
+  noteCall({ label: `${label} · ${lastName(fouler.name)}`, against: fouler.team, correct: Math.random() < ({ shoot: 0.75, reach: 0.7, block: 0.62, offensive: 0.62 }[kind]),
+    pos: victim.pos.clone(), spot: sidelineSpot(victim.pos),
+    undo: () => { fouler.pf = Math.max(0, fouler.pf - 1); if (counted) G.teamFouls[fouler.team] = Math.max(0, G.teamFouls[fouler.team] - 1); fouler.fouledOut = fouler.pf >= 6; } });
   const bonus = kind !== 'offensive' && G.teamFouls[fouler.team] >= 5 ? ' · 보너스' : '';
   msg(label, '#ff9b6b', `${fouler.name} — 개인 ${fouler.pf}파울 · 팀파울 ${G.teamFouls[fouler.team]}${bonus}${out ? ' · 6반칙 퇴장' : ''}`, 2.2);
   Sound.say(`Foul on ${lastName(fouler.name)}${out ? '. That is his sixth. He has fouled out' : ''}`, true);
@@ -1492,7 +1515,8 @@ function updateInbound(dt) {
   I.wait -= dt;
   const inward = Math.abs(I.spot.x) > HX ? V(-Math.sign(I.spot.x), 0, 0) : V(0, 0, -Math.sign(I.spot.z));
   const recv = teams[I.team].find(p => p !== I.passer && !p.isUser && p.slot <= 1) || teams[I.team].find(p => p !== I.passer);
-  for (const p of onCourt) {
+  for (const p of [...onCourt]) {
+    if (G.phase !== 'inbound' || !p.onCourt) break;
     if (p === I.passer) { steer(p, null, 0, dt); continue; }
     if (p.isUser) { userControl(p, dt); continue; }
     if (ball.state === 'pass') { ai(p, dt); continue; }
@@ -1701,6 +1725,139 @@ function userTimeout() {
   else msg('지금은 부를 수 없어요', '#ff7b7b', '우리 공일 때나 볼데드 때 T', 1.4);
 }
 
+// ───────────────────────── 리플레이 녹화 / 코치 챌린지 / 비디오 판독 ─────────────────────────
+// 직전 8초 동안 코트 위 선수들의 관절·위치와 공 위치를 매 프레임 기록해 두었다가 판독 때 슬로모션으로 재생한다.
+const REC = { buf: new Array(480), n: 0 };
+function rigJoints(r) {
+  return [r.th[0].rotation.x, r.th[0].rotation.z, r.th[1].rotation.x, r.th[1].rotation.z, r.kn[0].rotation.x, r.kn[1].rotation.x, r.an[0].rotation.x, r.an[1].rotation.x,
+    r.sh[0].rotation.x, r.sh[0].rotation.z, r.sh[1].rotation.x, r.sh[1].rotation.z, r.el[0].rotation.x, r.el[1].rotation.x, r.wr[0].rotation.x, r.wr[1].rotation.x,
+    r.spine.rotation.x, r.spine.rotation.y, r.head.rotation.x, r.head.rotation.y, r.hips.position.y];
+}
+function setRigJoints(r, j) {
+  [r.th[0].rotation.x, r.th[0].rotation.z, r.th[1].rotation.x, r.th[1].rotation.z, r.kn[0].rotation.x, r.kn[1].rotation.x, r.an[0].rotation.x, r.an[1].rotation.x,
+    r.sh[0].rotation.x, r.sh[0].rotation.z, r.sh[1].rotation.x, r.sh[1].rotation.z, r.el[0].rotation.x, r.el[1].rotation.x, r.wr[0].rotation.x, r.wr[1].rotation.x,
+    r.spine.rotation.x, r.spine.rotation.y, r.head.rotation.x, r.head.rotation.y, r.hips.position.y] = j;
+}
+function recordFrame() {
+  const ps = onCourt.map(p => ({ p, x: p.rig.root.position.x, y: p.rig.root.position.y, z: p.rig.root.position.z, ry: p.rig.root.rotation.y, j: rigJoints(p.rig) }));
+  REC.buf[REC.n % REC.buf.length] = { b: [ball.pos.x, ball.pos.y, ball.pos.z], ps };
+  REC.n++;
+}
+function clip(from, to) { // 녹화된 프레임 [from, to) 를 꺼낸다
+  const out = [];
+  for (let i = Math.max(from, REC.n - REC.buf.length, 0); i < Math.min(to, REC.n); i++) out.push(REC.buf[i % REC.buf.length]);
+  return out;
+}
+function applyFrame(a, b, s) { // 두 프레임을 보간해서 리그에 적용
+  const L = (x, y) => x + (y - x) * s;
+  const map = new Map(b.ps.map(e => [e.p, e]));
+  for (const e of a.ps) {
+    const o = map.get(e.p) || e, r = e.p.rig;
+    r.root.position.set(L(e.x, o.x), L(e.y, o.y), L(e.z, o.z));
+    r.root.rotation.y = e.ry + wrapA(o.ry - e.ry) * s;
+    setRigJoints(r, e.j.map((v, i) => L(v, o.j[i])));
+  }
+  G.rvBall = V(L(a.b[0], b.b[0]), L(a.b[1], b.b[1]), L(a.b[2], b.b[2]));
+}
+
+// 판정 기록: 파울 / 아웃 오브 바운즈가 불리면 남겨 두고, 다음 데드볼에 챌린지 기회를 준다
+function noteCall(c) { G.lastCall = { ...c, recN: REC.n, t: T, open: true }; }
+function offerChallenge() {
+  const c = G.lastCall;
+  if (!c || !c.open) return;
+  c.open = false;
+  const t = c.against;
+  if (G.chl[t] <= 0 || G.to[t] <= 0 || G.state !== 'play') return;
+  if (t === 0) {
+    G.chal = { team: 0, window: 4.0 };
+    G.dead = Math.max(G.dead, 4.2);
+    $('chalBox').style.display = 'block';
+    $('chalText').textContent = `${c.label} — 판정에 이의가 있으면 V (챌린지 ${G.chl[0]} · 작전타임 ${G.to[0]})`;
+  } else if (Math.random() < (c.correct ? 0.08 : 0.6)) {
+    G.chal = { team: 1, wait: 1.3 };
+    G.dead = Math.max(G.dead, 1.6);
+  }
+}
+function updateChallengeWindow(dt) {
+  const C = G.chal; if (!C) return;
+  if (C.team === 0) {
+    C.window -= dt;
+    $('chalTime').style.width = clamp(C.window / 4, 0, 1) * 100 + '%';
+    if (C.window <= 0) { G.chal = null; $('chalBox').style.display = 'none'; }
+  } else { C.wait -= dt; if (C.wait <= 0) startChallenge(1); }
+}
+function startChallenge(team) {
+  const c = G.lastCall;
+  G.chal = null; $('chalBox').style.display = 'none';
+  if (!c || G.phase !== 'dead') return;
+  G.chl[team]--;
+  const pending = G.onDead; G.onDead = null;
+  const ab = team === 0 ? 'SAS' : G.oppKey;
+  Sound.whistle(); msg('🚩 코치 챌린지!', teamCol(team), `${ab} 벤치가 "${c.label}" 판정에 이의를 제기합니다`, 2.2);
+  Sound.say(team === 0 ? 'The Spurs are challenging the call on the floor' : 'Coach challenge', true);
+  startReview({
+    title: `코치 챌린지 · ${ab}`, what: c.label, frameEnd: c.recN, center: c.pos, overturn: !c.correct,
+    onOverturn: () => {
+      c.undo && c.undo();
+      if (!G.chlBonus[team]) { G.chlBonus[team] = true; G.chl[team]++; }
+      return () => startInbound(team, c.spot, 0.8);
+    },
+    onUphold: () => { G.to[team]--; return pending; },
+    good: team, overText: `판정 번복! ${ab} 챌린지 성공`, keepText: `원심 유지 · ${ab} 작전타임 1개 소진`,
+  });
+}
+
+function startReview(o) {
+  G.phase = 'review'; G.meter = null; G.chal = null;
+  const frames = clip(o.frameEnd - 170, o.frameEnd + 30);
+  G.rv = { ...o, frames, stage: 'gather', t: 1.8, idx: 0, pass: 0 };
+  for (const p of onCourt) { p.vel.set(0, 0, 0); p.target = null; }
+  $('reviewBox').style.display = 'block'; $('reviewTitle').textContent = o.title; $('reviewWhat').textContent = o.what || '';
+  $('reviewStage').textContent = '심판진이 모니터로 이동 중…';
+  Sound.oohh(); G.excite = Math.max(G.excite, 0.35);
+}
+function reviewCam(pass) {
+  const R = G.rv, c = R.center || V(0, 0, 0);
+  const sx = c.x >= 0 ? 1 : -1;
+  if (pass === 0) { R.camP = V(c.x - sx * 3.2, 2.0, c.z + 4.8); R.camL = V(c.x, 1.25, c.z); }      // 측면 낮은 각도
+  else { R.camP = V(c.x + sx * 2.6, 3.4, c.z - 4.6); R.camL = V(c.x, 1.0, c.z + 0.3); }            // 반대편 높은 각도
+  camPos.copy(R.camP); camLook.copy(R.camL);
+}
+function updateReview(dt) {
+  const R = G.rv;
+  for (const p of onCourt) { steer(p, null, 0, dt); if (p.stamina < 60) p.tired = true; }
+  R.t -= dt;
+  if (R.stage === 'gather') {
+    if (R.t <= 0) {
+      if (R.frames.length < 10) { R.stage = 'verdict'; R.t = 0; }
+      else { R.stage = 'replay'; R.idx = 0; R.pass = 0; reviewCam(0); document.body.classList.add('replay'); }
+    }
+  } else if (R.stage === 'replay') {
+    R.idx += dt * 60 * (R.pass === 0 ? 0.4 : 0.6);
+    $('reviewStage').textContent = `REPLAY ${R.pass + 1}/2 · 슬로모션 ×${R.pass === 0 ? '0.4' : '0.6'}`;
+    if (R.idx >= R.frames.length - 1) {
+      R.pass++;
+      if (R.pass >= 2) { R.stage = 'verdict'; R.t = 2.8; document.body.classList.remove('replay'); G.rvBall = null; giveVerdict(); }
+      else { R.idx = 0; reviewCam(1); }
+    }
+  } else if (R.stage === 'verdict' && R.t <= 0) {
+    $('reviewBox').style.display = 'none';
+    G.rv = null; G.phase = 'dead'; G.dead = 0.4; G.onDead = R.resume || null;
+  }
+}
+function giveVerdict() {
+  const R = G.rv, over = R.overturn;
+  R.resume = over ? R.onOverturn() : R.onUphold();
+  const col = R.good === undefined ? '#fff' : (over ? teamCol(R.good) : '#ff9b6b');
+  $('reviewStage').textContent = over ? '판정 번복' : '원심 유지';
+  msg(over ? '판정 번복!' : '원심 유지', col, over ? R.overText : R.keepText, 2.6);
+  refSignal(over ? 'viol' : 'three2', null, 1.5);
+  Sound.whistle();
+  const goodForSpurs = R.good === 0 ? over : R.good === 1 ? !over : R.spursGain;
+  if (goodForSpurs) { Sound.cheer(0.9); G.excite = 1; } else Sound.groan();
+  Sound.say(over ? 'After review, the call on the floor is overturned' : 'After review, the call on the floor stands', true);
+}
+
 // ───────────────────────── quarters ─────────────────────────
 function endQuarter() {
   Sound.buzzer(); G.meter = null;
@@ -1796,6 +1953,7 @@ function aiHandler(p, dt) {
 }
 function aiDefSpot(p, dt) {
   const man = teams[1 - p.team][p.slot]; p.man = man;
+  if (!man) return p.pos.clone();
   const H = HOOPS[man.team];
   const dir = V(H.x - man.pos.x, 0, H.z - man.pos.z); const dm = dir.length(); dir.normalize();
   let gap = ball.holder === man ? 0.95 : 1.7;
@@ -2002,6 +2160,16 @@ function score(s) {
     const f = G.onDead, run = G.run.pts; G.run = { team: -1, pts: 0 };
     G.onDead = () => { msg(`${G.oppKey} 작전타임`, '#6aa8ff', `스퍼스 ${run}-0 런을 끊기 위해`, 2); callTimeout(1, f); };
   }
+  if (sh && sh.line && Math.random() < 0.75) { // 3점 라인 근처 득점은 심판진이 비디오로 확인
+    const f = G.onDead, over = (sh.pts === 3) !== sh.trueThree;
+    G.onDead = () => startReview({
+      title: '비디오 판독 · 심판진 확인', what: `${lastName(shooter.name)}의 슛 — 3점 라인을 밟았을까?`, frameEnd: sh.recN + 8, center: sh.pos, overturn: over,
+      spursGain: over && ((team === 0) === sh.trueThree),
+      onOverturn: () => { const dlt = sh.trueThree ? 1 : -1; G.score[team] += dlt; shooter.box.pts += dlt; shooter.box.tpa += dlt; shooter.box.tpm += dlt; return f; },
+      onUphold: () => f,
+      overText: sh.trueThree ? '3점으로 정정 (라인 밖에서 슛)' : '2점으로 정정 (라인을 밟음)', keepText: `${sh.pts}점 그대로 인정`,
+    });
+  }
   if (ib) ib.target = V(clamp(spot.x, -HX + 0.3, HX - 0.3), 0, spot.z);
 }
 
@@ -2092,7 +2260,8 @@ function ballPhysics(dt) {
   }
   if (ball.state === 'loose' && (Math.abs(ball.pos.x) > HX + 0.1 || Math.abs(ball.pos.z) > HZ + 0.1) && ball.pos.y < 2.5) {
     Sound.whistle(); refSignal('viol', null, 1.0);
-    const team = 1 - ball.lastTeam, spot = sidelineSpot(ball.pos);
+    const truth = 1 - ball.lastTeam, team = Math.random() < 0.2 ? ball.lastTeam : truth, spot = sidelineSpot(ball.pos); // 심판이 가끔 마지막 터치를 잘못 봄
+    noteCall({ label: '아웃 오브 바운즈', against: 1 - team, correct: team === truth, pos: ball.pos.clone(), spot });
     msg('아웃 오브 바운즈', '#ff7b7b', `${team === 0 ? 'SAS' : G.oppKey} 공격`, 1.3);
     ball.state = 'dead';
     deadBall(1.3, () => startInbound(team, spot, 0.7));
@@ -2318,6 +2487,7 @@ function placeHeldBall(p, dt) {
 // ───────────────────────── camera / HUD ─────────────────────────
 const camPos = V(0, 10, 17), camLook = V(0, 1, 0);
 function updateCamera(dt) {
+  if (G.phase === 'review' && G.rv && G.rv.stage === 'replay') { camera.position.copy(G.rv.camP); camera.lookAt(G.rv.camL); camPos.copy(G.rv.camP); camLook.copy(G.rv.camL); return; }
   const fx = clamp(ball.pos.x, -11, 11);
   let tp, tl;
   if (G.cam === 0) { tp = V(fx * 0.82, 10.5, 17.5); tl = V(fx * 0.92, 0.6, -0.6); }
@@ -2341,7 +2511,7 @@ function updateHud(dt) {
   $('shotclock').textContent = Math.max(0, Math.ceil(G.shot));
   $('shotclock').style.opacity = G.shot <= G.clock && G.phase !== 'jump' ? 1 : 0.25;
   $('possL').style.opacity = G.offense === 0 ? 1 : 0; $('possR').style.opacity = G.offense === 1 ? 1 : 0;
-  for (const t of [0, 1]) $('tf' + t).textContent = `팀파울 ${G.teamFouls[t]}${G.teamFouls[t] >= 5 ? ' BONUS' : ''} · 타임 ${G.to[t]}`;
+  for (const t of [0, 1]) $('tf' + t).textContent = `팀파울 ${G.teamFouls[t]}${G.teamFouls[t] >= 5 ? ' BONUS' : ''} · 타임 ${G.to[t]} · 챌린지 ${G.chl[t]}`;
   $('dirNote').textContent = `SAS 공격 ${HOOPS[0].x > 0 ? '→' : '←'}`;
   const h = ball.holder;
   $('handler').textContent = h && ball.state === 'held' ? `🏀 ${h.name} #${h.num} · ${h.cm}cm` : '';
@@ -2406,8 +2576,10 @@ function update(dt) {
           else steer(p, null, 0, dt);
           if (p.stamina < 45 && !p.target && Math.hypot(p.vel.x, p.vel.z) < 0.3) p.tired = true;
         }
-        if (G.dead <= 0) { const f = G.onDead; G.onDead = null; for (const p of onCourt) p.target = null; f && f(); }
+        updateChallengeWindow(dt);
+        if (G.dead <= 0 && !G.chal) { const f = G.onDead; G.onDead = null; for (const p of onCourt) p.target = null; f && f(); }
         break;
+      case 'review': updateReview(dt); break;
       case 'inbound': updateInbound(dt); break;
       case 'ft': updateFT(dt); break;
       case 'break': updateBreak(dt); break;
@@ -2417,10 +2589,13 @@ function update(dt) {
   movePlayers(dt);
   ballPhysics(dt);
   updateRefs(dt);
-  for (const p of onCourt) animatePerson(p, dt);
+  const replaying = G.phase === 'review' && G.rv && G.rv.stage === 'replay';
+  if (replaying) { const F = G.rv.frames, i = Math.min(Math.floor(G.rv.idx), F.length - 2); applyFrame(F[i], F[i + 1], G.rv.idx - i); }
+  else for (const p of onCourt) animatePerson(p, dt);
   for (const r of refs) animatePerson(r, dt);
   if (Math.floor(T * 60) % 3 === 0) for (const p of [...roster[0], ...roster[1]]) if (!p.onCourt) animatePerson(p, dt * 3);
-  if (ball.state === 'held' && ball.holder) placeHeldBall(ball.holder, dt);
+  if (ball.state === 'held' && ball.holder && !replaying) placeHeldBall(ball.holder, dt);
+  if (G.state === 'play' && G.phase !== 'review' && G.phase !== 'break') recordFrame();
 }
 
 function updateLive(dt) {
@@ -2444,14 +2619,14 @@ function updateLive(dt) {
     else if (G.meter.v >= 1.05) releaseMeter();
   }
   computeChasers();
-  for (const p of onCourt) p.isUser ? userControl(p, dt) : ai(p, dt);
+  for (const p of [...onCourt]) { if (G.phase !== 'live' || !p.onCourt) break; p.isUser ? userControl(p, dt) : ai(p, dt); }
 }
 
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   for (let i = 0; i < (window.__speed || 1); i++) update(dt);
-  if (G.state !== 'menu') { ballMesh.position.copy(ball.pos); updateCamera(dt); updateHud(dt); }
+  if (G.state !== 'menu') { ballMesh.position.copy(G.rvBall || ball.pos); updateCamera(dt); updateHud(dt); }
   else { const a = now / 7000; camera.position.set(Math.sin(a) * 20, 8, Math.cos(a) * 16); camera.lookAt(0, 1, 0); ballMesh.position.set(0, 0.12, 0); }
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
@@ -2478,7 +2653,7 @@ function start(k) {
 $('startBtn').onclick = () => picked && start(picked);
 $('againBtn').onclick = () => start(G.oppKey);
 $('menuBtn').onclick = () => { $('over').style.display = 'none'; $('hud').style.display = 'none'; $('menu').style.display = 'flex'; G.state = 'menu'; };
-window.__game = { startFT, startShot, step: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { update(dt); ballMesh.position.copy(ball.pos); } }, G, ball, get teams() { return teams; }, get roster() { return roster; }, refs, Sound };
+window.__game = { startFT, startShot, callFoul, handleCommonFoul, step: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { update(dt); ballMesh.position.copy(G.rvBall || ball.pos); } }, G, ball, get teams() { return teams; }, get roster() { return roster; }, refs, Sound };
 
 </script>
 </body>
