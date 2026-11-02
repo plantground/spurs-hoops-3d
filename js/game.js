@@ -150,7 +150,7 @@ function refreshCourt() {
 function keysHtml() {
   const mates = teams[0].filter(p => !p.isUser).map((p, i) => `<kbd>${i + 1}</kbd> ${lastName(p.name)}`).join(' &nbsp;');
   return `<div><kbd>WASD</kbd> 이동 <kbd>Shift</kbd> 터보 <kbd>C</kbd> 카메라 <kbd>Tab</kbd> 교체 <kbd>T</kbd> 작전타임 <kbd>V</kbd> 챌린지</div>
-  <div><kbd>Space</kbd> 슛·점프·블록 &nbsp;<kbd>E</kbd> 패스·요청·스틸 &nbsp;<kbd>Q</kbd> 개인기 <kbd>F</kbd> 스텝백</div><div>${mates} &nbsp;<kbd>M</kbd> 소리 <kbd>N</kbd> 해설</div>`;
+  <div><kbd>Space</kbd> 슛·점프·블록 &nbsp;<kbd>E</kbd> 패스·요청·스틸 &nbsp;<kbd>Q</kbd> 개인기 <kbd>F</kbd> 스텝백 <kbd>R</kbd> 공 잡기</div><div>${mates} &nbsp;<kbd>M</kbd> 소리 <kbd>N</kbd> 해설</div>`;
 }
 
 function formation(team) { // teleport for quarter starts
@@ -161,7 +161,7 @@ function formation(team) { // teleport for quarter starts
   teams[1 - team].forEach((p, i) => p.pos.set(defF[i][0] * s, 0, defF[i][1]));
   for (const p of onCourt) resetMotion(p);
 }
-function resetMotion(p) { p.vel.set(0, 0, 0); p.jumpY = 0; p.jumpV = 0; p.hang = 0; p.shooting = null; p.drive = null; p.spot = null; p.jumpDelay = 0; p.oob = false; p.target = null; p.follow = 0; p.move = null; p.spinA = 0; p.burst = 0; p.beaten = 0; }
+function resetMotion(p) { p.vel.set(0, 0, 0); p.jumpY = 0; p.jumpV = 0; p.hang = 0; p.shooting = null; p.drive = null; p.spot = null; p.jumpDelay = 0; p.oob = false; p.target = null; p.follow = 0; p.move = null; p.spinA = 0; p.burst = 0; p.beaten = 0; p.picked = false; }
 
 function giveBall(p, reset = false) {
   const changed = G.offense !== p.team;
@@ -169,7 +169,7 @@ function giveBall(p, reset = false) {
   ball.lastTeam = p.team; G.offense = p.team;
   if (changed || reset) { G.shot = 24; ball.lastPasser = null; G.front = p.pos.x * sgn(p.team) > 0; G.eight = 0; }
   if (changed && G.phase === 'live') G.transition = 3.0; // 공수 전환: 모두 전력질주
-  p.holdT = 0; p.holdLimit = rand(1.2, 3.4); p.aiT = rand(0.2, 0.5); p.drive = null;
+  p.holdT = 0; p.holdLimit = rand(1.2, 3.4); p.aiT = rand(0.2, 0.5); p.drive = null; p.picked = false;
   Sound.catchBall();
 }
 
@@ -238,7 +238,7 @@ function updateRefs(dt) {
   const s = sgn(G.offense);
   for (const r of refs) {
     let tg;
-    if (G.phase === 'review') tg = V(-1.2 + refs.indexOf(r) * 1.2, 0, -8.35);
+    if (G.phase === 'review' && G.rv && !G.rv.replayOnly) tg = V(-1.2 + refs.indexOf(r) * 1.2, 0, -8.35);
     else if (G.phase === 'jump' && r.role === 'center') tg = V(0, 0, 0.95);
     else if (r.role === 'lead') tg = V(s * (HX + 0.75), 0, clamp(ball.pos.z * 0.3 - 2.8, -6, 1));
     else if (r.role === 'trail') tg = V(clamp(ball.pos.x - s * 4, -12, 12), 0, HZ + 0.85);
@@ -246,7 +246,7 @@ function updateRefs(dt) {
     const dx = tg.x - r.pos.x, dz = tg.z - r.pos.z, L = Math.hypot(dx, dz);
     const des = L > 0.25 ? V(dx / L * Math.min(5.6, L * 2.5), 0, dz / L * Math.min(5.6, L * 2.5)) : V();
     r.vel.lerp(des, Math.min(1, dt * 5)); r.pos.addScaledVector(r.vel, dt);
-    let look = G.phase === 'review' ? V(r.pos.x, 1, -9.5) : ball.pos;
+    let look = G.phase === 'review' && G.rv && !G.rv.replayOnly ? V(r.pos.x, 1, -9.5) : ball.pos;
     if (r.sig) { r.sig.t -= dt; if (r.sig.target) look = r.sig.target.pos; if (r.sig.t <= 0) r.sig = null; }
     const want = Math.atan2(look.x - r.pos.x, look.z - r.pos.z);
     r.face += wrapA(want - r.face) * Math.min(1, dt * 6);
@@ -273,6 +273,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyT') userTimeout();
   if (e.code === 'KeyV' && G.chal && G.chal.team === 0) startChallenge(0);
   if ((e.code === 'KeyQ' || e.code === 'KeyF') && G.phase === 'live') userMove(e.code === 'KeyF');
+  if (e.code === 'KeyR' && G.phase === 'live') userPickup();
   const u = user();
   if (/^Digit[1-4]$/.test(e.code) && G.phase === 'live' && ball.holder === u && !u.shooting) doPass(u, teams[0].filter(p => !p.isUser)[+e.code.slice(5) - 1]);
 });
@@ -304,9 +305,29 @@ function spaceDown() {
     contestReact(u);
   } else if (!u.shooting) u.jump(G.offense === 0 ? 4.6 : 4.9);
 }
+// ── 워킹(트래블링) ──
+function userPickup() { // 드리블을 멈추고 공을 잡는다 (트리플 스렛)
+  const u = user();
+  if (ball.holder !== u || u.shooting || u.move || u.picked || !u.grounded) return;
+  u.picked = true; u.pivot = u.pos.clone(); u.stepDist = 0; u.stepsShown = 0;
+  flash('드리블 멈춤 · 피벗만 가능 — 패스(E)·슛(Space)! 2스텝 넘게 걸으면 워킹', '#ffd21f');
+}
+const TRAVEL_WHY = { picked: '공을 잡은 뒤 2스텝 초과', spin: '스핀 무브 중 축발이 떨어짐', euro: '유로스텝에서 스텝 하나 더', stepback: '스텝백에서 두 번 착지', hesi: '헤지테이션 때 공보다 발이 먼저 나감' };
+function travel(p, why) {
+  if (G.phase !== 'live' || ball.holder !== p || G.whistled) return;
+  p.picked = false; p.move = null; p.spinA = 0;
+  Sound.whistle(); refSignal('viol', p, 1.6);
+  msg('워킹! (트래블링)', '#ff7b7b', `${p.name} · ${why}`, 2.2);
+  Sound.say(`Traveling on ${lastName(p.name)}`, true);
+  if (p.team === 0) Sound.groan(); else { Sound.cheer(0.5); G.excite = Math.max(G.excite, 0.6); }
+  const team = 1 - p.team, spot = sidelineSpot(p.pos), recN = REC.n, center = p.pos.clone();
+  ball.state = 'dead'; ball.holder = null; ball.vel.set(0, 0, 0);
+  deadBall(1.4, () => startReview({ title: '리플레이 · 워킹(트래블링)', what: `${p.name} — ${why}`, frameEnd: recN + 6, center, replayOnly: true, passes: 1, after: () => startInbound(team, spot, 0.7) }));
+}
 function userMove(stepback) {
   const u = user();
   if (ball.holder !== u || u.shooting || u.move) return;
+  if (u.picked) { flash('드리블을 멈춘 상태 — 개인기 불가', '#ff9b6b'); return; }
   if (stepback) { startMove(u, 'stepback'); return; }
   const H = HOOPS[0], d = distH(u.pos, H), S = sig(u).moves;
   const toH = V(H.x - u.pos.x, 0, H.z - u.pos.z).normalize(), dir = inputDir();
@@ -460,6 +481,8 @@ function updateMove(p, dt) {
   p.vel.lerp(v, Math.min(1, dt * 14));
   if (m.t >= m.dur) {
     p.move = null; p.spinA = 0;
+    const tc = { spin: 0.06, euro: 0.045, stepback: 0.05, hesi: 0.02 }[m.type];
+    if (tc && Math.random() < tc * (1.35 - p.ovr / 100) * (p.isUser ? 0.6 : 1)) { travel(p, TRAVEL_WHY[m.type]); return; }
     if (m.type === 'cross' || m.type === 'btl' || m.type === 'behind') p.dh = 1 - p.dh;
     if (m.type === 'hesi' || m.type === 'spin') p.burst = 0.7;
     if (m.type === 'stepback') p.stepT = 0.8;
@@ -480,7 +503,7 @@ function aiChooseMove(p, d, dd) {
 function releaseShot(p, q) {
   const sh = p.shooting || {};
   const dunk = !!sh.dunk, layup = !!sh.layup, kind = sh.kind || 'jumper', spec = SHOT_SPEC[kind];
-  p.shooting = null;
+  p.shooting = null; p.picked = false;
   if (ball.holder !== p || G.phase !== 'live') return;
   const H = HOOPS[p.team], d = distH(p.pos, H);
   const corner = Math.abs(p.pos.z) > 6.6 && Math.abs(p.pos.x - H.x) < 4.3;
@@ -583,7 +606,7 @@ function doPass(from, to) {
   const start = ball.pos.clone();
   ball.vel.set((tgt.x - start.x) / time, (tgt.y - start.y + 0.5 * GRAV * time * time) / time, (tgt.z - start.z) / time);
   ball.state = 'pass'; ball.holder = null; ball.pass = { from, to, time, tgt }; ball.passTime = 0; ball.cut.clear(); ball.noGrab = 0; ball.lastTeam = from.team;
-  from.face = Math.atan2(tgt.x - from.pos.x, tgt.z - from.pos.z); from.passT = 0.28;
+  from.face = Math.atan2(tgt.x - from.pos.x, tgt.z - from.pos.z); from.passT = 0.28; from.picked = false;
 }
 
 // ───────────────────────── fouls & violations ─────────────────────────
@@ -939,10 +962,10 @@ function startChallenge(team) {
 function startReview(o) {
   G.phase = 'review'; G.meter = null; G.chal = null;
   const frames = clip(o.frameEnd - 170, o.frameEnd + 30);
-  G.rv = { ...o, frames, stage: 'gather', t: 1.8, idx: 0, pass: 0 };
+  G.rv = { ...o, frames, stage: 'gather', t: o.replayOnly ? 0.6 : 1.8, idx: 0, pass: 0 };
   for (const p of onCourt) { p.vel.set(0, 0, 0); p.target = null; }
   $('reviewBox').style.display = 'block'; $('reviewTitle').textContent = o.title; $('reviewWhat').textContent = o.what || '';
-  $('reviewStage').textContent = '심판진이 모니터로 이동 중…';
+  $('reviewStage').textContent = o.replayOnly ? '리플레이' : '심판진이 모니터로 이동 중…';
   Sound.oohh(); G.excite = Math.max(G.excite, 0.35);
 }
 function reviewCam(pass) {
@@ -966,7 +989,10 @@ function updateReview(dt) {
     $('reviewStage').textContent = `REPLAY ${R.pass + 1}/2 · 슬로모션 ×${R.pass === 0 ? '0.4' : '0.6'}`;
     if (R.idx >= R.frames.length - 1) {
       R.pass++;
-      if (R.pass >= 2) { R.stage = 'verdict'; R.t = 2.8; document.body.classList.remove('replay'); G.rvBall = null; giveVerdict(); }
+      if (R.pass >= (R.passes || 2)) {
+        document.body.classList.remove('replay'); G.rvBall = null;
+        if (R.replayOnly) { R.stage = 'verdict'; R.t = 0.2; R.resume = R.after; } else { R.stage = 'verdict'; R.t = 2.8; giveVerdict(); }
+      }
       else { R.idx = 0; reviewCam(1); }
     }
   } else if (R.stage === 'verdict' && R.t <= 0) {
@@ -1174,6 +1200,14 @@ function userControl(p, dt) {
   if (G.whistled) spd *= 0.3;
   p.vel.lerp(dir.multiplyScalar(spd), p.grounded ? Math.min(1, dt * 10) : Math.min(1, dt));
   if (ball.holder === p) p.holdT += dt;
+  if (ball.holder === p && p.picked && G.phase === 'live' && p.grounded && !p.shooting) {
+    const sp = Math.hypot(p.vel.x, p.vel.z);
+    if (sp > 2.6) p.vel.multiplyScalar(2.6 / sp); // 공을 든 채로는 걸음 속도
+    if (distH(p.pos, p.pivot) > 0.35) p.stepDist += sp * dt; // 피벗(제자리 회전)은 허용
+    const steps = Math.min(3, Math.floor(p.stepDist / 0.6));
+    if (steps !== p.stepsShown && steps > 0) { p.stepsShown = steps; flash(`스텝 ${steps} / 2`, steps >= 2 ? '#ff5b5b' : '#ffd21f'); }
+    if (p.stepDist > 1.3) travel(p, TRAVEL_WHY.picked);
+  }
   p.stance = G.phase === 'live' && G.offense !== p.team && ball.holder && distH(ball.holder.pos, p.pos) < 3.5 && !sprint;
   p.man = ball.holder;
   if (sprint && p.vel.lengthSq() > 9) p.stamina -= dt * 0.25 * (180 / G.qLen);
@@ -1480,7 +1514,7 @@ function animatePerson(p, dt) {
   }
   else if (p.follow > 0) { P.shx[dom] = -2.8; P.el[dom] = -0.08; P.wr[dom] = 1.1; P.shx[off] = -2.2; P.el[off] = -0.5; }
   else if (p.passT > 0) { const s = 1 - p.passT / 0.28; P.shx = [-1.45, -1.45]; P.el = [-1.6 * (1 - s) - 0.1, -1.6 * (1 - s) - 0.1]; P.shz = [-0.15, 0.15]; P.wr = [0.6 * s, 0.6 * s]; }
-  else if (holding && (p.oob || p.ftHold)) { P.shx = [-0.75, -0.75]; P.el = [-1.65, -1.65]; P.shz = [-0.25, 0.25]; }
+  else if (holding && (p.oob || p.ftHold || p.picked)) { P.shx = [-0.75, -0.75]; P.el = [-1.65, -1.65]; P.shz = [-0.25, 0.25]; }
   else if (holding && air) { P.shx = [-2.7, -2.7]; P.el = [-1.0, -1.0]; P.shz = [-0.2, 0.2]; }
   else if (mv) {
     // ── 개인기 동작 ──
@@ -1570,7 +1604,7 @@ function placeHeldBall(p, dt) {
     return;
   }
   const mv = p.move;
-  if (p.oob || p.ftHold || air || p.passT > 0 || (mv && ['spin', 'euro', 'stepback', 'jab'].includes(mv.type))) {
+  if (p.oob || p.ftHold || p.picked || air || p.passT > 0 || (mv && ['spin', 'euro', 'stepback', 'jab'].includes(mv.type))) {
     ball.pos.copy(mid()).addScaledVector(f, BALL_R * 0.9);
     if (air) ball.pos.y += 0.05;
     return;
