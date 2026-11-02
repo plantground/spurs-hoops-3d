@@ -94,7 +94,7 @@ const refs = [0, 1, 2].map(i => new Ref(i));
 const G = {
   state: 'menu', phase: 'live', score: [0, 0], q: 1, qLen: 180, clock: 180, shot: 24, dead: 0, onDead: null, offense: 0, oppKey: null,
   cam: 0, call: 0, meter: null, diff: 1, paused: false, flip: false, teamFouls: [0, 0], front: false, eight: 0, whistled: false,
-  inb: null, ft: null, jb: null, tipWinner: 0, excite: 0.2, crowdMode: '', chantT: 2, autoSub: true, subQ: [], subPanel: false, collCd: 0, keep: [], crowdT: 0, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null,
+  inb: null, ft: null, jb: null, tipWinner: 0, excite: 0.2, crowdMode: '', chantT: 2, autoSub: true, subQ: [], subPanel: false, collCd: 0, keep: [], crowdT: 0, to: [7, 7], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null,
 };
 let roster = [[], []], teams = [[], []], onCourt = [], T = 0;
 const ball = { pos: V(0, 1, 0), vel: V(), state: 'dead', holder: null, shot: null, pass: null, lastTeam: 0, noGrab: 0, lastPasser: null, passAt: -99, passTime: 0, cut: new Set() };
@@ -121,7 +121,7 @@ function newGame(oppKey) {
   teams = [roster[0].slice(0, 5), roster[1].slice(0, 5)];
   teams.forEach(tm => tm.forEach((p, i) => { p.onCourt = true; p.slot = i; }));
   refreshCourt();
-  Object.assign(G, { score: [0, 0], q: 1, clock: G.qLen, shot: 24, dead: 0, onDead: null, call: 0, meter: null, paused: false, state: 'play', teamFouls: [0, 0], subQ: [], keep: [], excite: 0.4, whistled: false, to: [5, 5], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null });
+  Object.assign(G, { score: [0, 0], q: 1, clock: G.qLen, shot: 24, dead: 0, onDead: null, call: 0, meter: null, paused: false, state: 'play', teamFouls: [0, 0], subQ: [], keep: [], excite: 0.4, whistled: false, to: [7, 7], run: { team: -1, pts: 0 }, transition: 0, brk: null, chl: [1, 1], chlBonus: [false, false], lastCall: null, chal: null, rv: null, rvBall: null });
   $('breakBox').style.display = 'none'; $('chalBox').style.display = 'none'; $('reviewBox').style.display = 'none'; document.body.classList.remove('replay');
   setSides(false);
   $('oppAb').textContent = oppKey;
@@ -586,7 +586,7 @@ function releaseShot(p, q) {
 function bestPassTarget(p, dir) {
   let best = null, bs = -1e9;
   for (const m of teams[p.team]) {
-    if (m === p || m.oob) continue;
+    if (m === p || m.oob || Math.abs(m.pos.x) > HX - 0.1 || Math.abs(m.pos.z) > HZ - 0.1) continue;
     if (G.front && G.phase === 'live' && m.pos.x * sgn(m.team) < 0.2) continue;
     const to = V(m.pos.x - p.pos.x, 0, m.pos.z - p.pos.z); const d = to.length(); to.normalize();
     let open = 9; for (const o of teams[1 - p.team]) open = Math.min(open, distH(o.pos, m.pos));
@@ -637,9 +637,21 @@ function handleCommonFoul(fouler, victim) {
   if (G.teamFouls[fouler.team] >= 5) { G.keep = [victim]; deadBall(1.6, () => startFT(victim, 2)); }
   else { const spot = sidelineSpot(victim.pos); G.shot = Math.max(G.shot, 14); deadBall(1.5, () => startInbound(victim.team, spot, 0.8)); }
 }
-function violation(ko, en, at) {
+function defensiveThree(d) { // 테크니컬 파울: 공격팀 자유투 1개 + 공격권 유지 (개인/팀 파울에는 포함 안 됨)
+  const off = 1 - d.team, s = sgn(off), sc = G.shot;
+  Sound.whistle(); refSignal('foul', d, 1.6);
+  msg('수비 3초 (테크니컬 파울)', '#ff9b6b', `${d.name} — 공격팀 자유투 1개, 공격권 유지`, 2.4);
+  Sound.say(`Defensive three seconds on ${lastName(d.name)}`, true);
+  if (off === 0) Sound.cheer(0.4); else Sound.groan();
+  const shooter = [...teams[off]].sort((a, b) => b.ft - a.ft)[0];
+  const spot = V(s * (HX - 5.8), 0, (ball.pos.z >= 0 ? 1 : -1) * (HZ + 0.45));
+  ball.state = 'dead'; ball.holder = null;
+  G.keep = [shooter];
+  deadBall(1.6, () => startFT(shooter, 1, { tech: true, after: () => { startInbound(off, spot, 0.8); G.shot = sc; } }));
+}
+function violation(ko, en, at, why) {
   Sound.whistle(); refSignal('viol', null, 1.3);
-  msg(ko, '#ff7b7b', '공격권 넘어감', 1.6); Sound.say(en, true);
+  msg(ko, '#ff7b7b', why ? `${why} · 공격권 넘어감` : '공격권 넘어감', 1.8); Sound.say(en, true);
   const team = 1 - G.offense;
   ball.state = 'dead'; ball.holder = null;
   deadBall(1.5, () => startInbound(team, sidelineSpot(at)));
@@ -695,11 +707,11 @@ function updateInbound(dt) {
 function endInbound() { if (G.inb) { G.inb.passer.oob = false; G.inb = null; } G.phase = 'live'; G.transition = 2.5; }
 
 // ───────────────────────── free throws ─────────────────────────
-function startFT(shooter, n) {
+function startFT(shooter, n, opts = {}) {
   if (!shooter.onCourt) shooter = teams[shooter.team][0];
   const t = shooter.team, s = sgn(t);
   G.phase = 'ft'; G.offense = t;
-  G.ft = { shooter, team: t, n, i: 0, stage: 'setup', t: 1.8 };
+  G.ft = { shooter, team: t, n, i: 0, stage: 'setup', t: 1.8, tech: !!opts.tech, after: opts.after };
   ball.state = 'dead'; ball.holder = null; ball.shot = null;
   const lane = (d, side) => V(s * (HX - d), 0, side * 2.78);
   const off = teams[t].filter(p => p !== shooter).sort((a, b) => b.h - a.h);
@@ -708,6 +720,12 @@ function startFT(shooter, n) {
   off[0].ftSpot = lane(3.0, 1); off[1].ftSpot = lane(3.0, -1);
   const per = [V(s * (RIM_X - 7.9), 0, 3.4), V(s * (RIM_X - 7.9), 0, -3.4), V(s * (RIM_X - 8.6), 0, 1.3), V(s * (RIM_X - 8.6), 0, -1.3)];
   [off[2], off[3], def[3], def[4]].forEach((p, i) => { p.ftSpot = per[i]; });
+  if (opts.tech) { // 테크니컬 자유투: 다른 선수들은 3점 라인 밖에 흩어져 선다
+    onCourt.filter(p => p !== shooter).forEach((p, i, arr) => {
+      const a = -1.15 + 2.3 * i / Math.max(1, arr.length - 1);
+      p.ftSpot = V(s * (RIM_X - Math.cos(a) * 8.4), 0, clamp(Math.sin(a) * 8.4, -HZ + 0.6, HZ - 0.6));
+    });
+  }
   shooter.ftSpot = V(s * (HX - 5.8 - 0.3), 0, 0);
   for (const p of onCourt) { p.shooting = null; p.stance = false; }
   msg(`자유투 ${n}개`, teamCol(t), `${shooter.name} · 성공률 ${Math.round(shooter.ft * 100)}%`, 1.8);
@@ -748,10 +766,10 @@ function ftRelease(q) {
   ball.vel.set((tgt.x - start.x) / time, (tgt.y - start.y + 0.5 * GRAV * time * time) / time, (tgt.z - start.z) / time);
   const last = F.i === F.n - 1;
   ball.state = 'shot'; ball.holder = null; ball.noGrab = 0.5; ball.lastTeam = F.team;
-  ball.shot = { team: F.team, pts: 1, shooter: sh, make, ft: true, last };
+  ball.shot = { team: F.team, pts: 1, shooter: sh, make, ft: true, last, tech: F.tech };
   sh.box.fta++;
   F.stage = 'flight';
-  if (last) { G.phase = 'live'; for (const p of onCourt) p.crash = p.ftSpot && Math.abs(p.ftSpot.z) > 2 && p !== sh; }
+  if (last && !F.tech) { G.phase = 'live'; for (const p of onCourt) p.crash = p.ftSpot && Math.abs(p.ftSpot.z) > 2 && p !== sh; }
 }
 function nextFT() { const F = G.ft; F.i++; F.stage = 'setup'; F.t = 0.8; G.phase = 'ft'; ball.state = 'dead'; }
 
@@ -1118,7 +1136,7 @@ function aiDefSpot(p, dt) {
   const dir = V(H.x - man.pos.x, 0, H.z - man.pos.z); const dm = dir.length(); dir.normalize();
   let gap = ball.holder === man ? 0.95 : 1.7;
   if (dm > 10) gap = 2.6;
-  const t = man.pos.clone().addScaledVector(dir, Math.min(gap, dm * 0.5));
+  const t = man.pos.clone().addScaledVector(dir, Math.min(p.paintT > 1.5 ? 0.8 : gap, dm * 0.5));
   if (ball.holder && ball.holder !== man) { t.x += (ball.holder.pos.x - t.x) * 0.18; t.z += (ball.holder.pos.z - t.z) * 0.18; }
   if (ball.holder === man && G.phase === 'live' && !G.whistled) {
     p.stealCd -= dt;
@@ -1260,7 +1278,7 @@ function movePlayers(dt) {
     }
   }
   for (const p of onCourt) {
-    if (!p.oob) { p.pos.x = clamp(p.pos.x, -HX + 0.25, HX - 0.25); p.pos.z = clamp(p.pos.z, -HZ + 0.25, HZ - 0.25); }
+    if (!p.oob) { const mx = p.isUser ? HX + 1.2 : HX - 0.25, mz = p.isUser ? HZ + 1.0 : HZ - 0.25; p.pos.x = clamp(p.pos.x, -mx, mx); p.pos.z = clamp(p.pos.z, -mz, mz); }
     const sp = Math.hypot(p.vel.x, p.vel.z);
     let want;
     if (G.phase === 'jump') want = p.face;
@@ -1284,7 +1302,8 @@ function touched(kind) {
   const sh = ball.shot;
   if (ball.state === 'shot') {
     ball.state = 'loose'; ball.noGrab = Math.min(ball.noGrab, 0.12);
-    if (sh && sh.ft && !sh.last) { ball.state = 'dead'; deadBall(0.9, nextFT); }
+    if (sh && sh.tech) { ball.state = 'dead'; deadBall(0.9, G.ft.after); }
+    else if (sh && sh.ft && !sh.last) { ball.state = 'dead'; deadBall(0.9, nextFT); }
     else if (sh && sh.foul) { ball.state = 'dead'; G.keep = [sh.shooter]; deadBall(1.0, () => startFT(sh.shooter, sh.foul.fts)); }
     if (sh && !sh.ft && sh.pts === 3 && !sh.make) Sound.oohh();
   }
@@ -1319,6 +1338,7 @@ function score(s) {
 
   if (sh && sh.ft) {
     msg(`자유투 성공 (${G.ft.i + 1}/${G.ft.n})`, teamCol(team), nm, 1.0);
+    if (sh.tech) { deadBall(1.0, G.ft.after); return; }
     if (!sh.last) { deadBall(0.9, nextFT); return; }
     const spot = V(Math.sign(s) * (HX + 0.45), 0, Math.random() < 0.5 ? 1.6 : -1.6);
     deadBall(1.2, () => startInbound(1 - team, spot, 0.6));
@@ -1798,6 +1818,9 @@ function updateLive(dt) {
       else { G.eight += dt; if (G.eight >= 8) { violation('8초 바이얼레이션', 'Eight second violation', ball.pos.clone()); return; } }
     } else if (h && ball.state === 'held' && h.team === off && h.pos.x * s < -0.15 && !h.oob) { violation('하프코트 바이얼레이션', 'Backcourt violation', h.pos.clone()); return; }
   }
+  if (h && ball.state === 'held' && h.team === off && !h.oob && (Math.abs(h.pos.x) > HX - 0.1 || Math.abs(h.pos.z) > HZ - 0.1)) {
+    violation('아웃 오브 바운즈', 'Out of bounds', h.pos.clone(), `${h.name} — 공을 가지고 라인을 밟음`); return;
+  }
   // 공격 3초 룰: 공격팀 선수는 상대 페인트존에 3초 넘게 머물 수 없음 (슛이 공중에 있을 때는 리셋)
   if (G.front && (ball.state === 'held' || ball.state === 'pass') && !G.whistled) {
     const s3 = sgn(off);
@@ -1807,6 +1830,14 @@ function updateLive(dt) {
       p.paintT = inPaint && !exempt ? (p.paintT || 0) + dt : 0;
       if (p.isUser && p.paintT > 2 && p.paintT - dt <= 2) flash('3초! 페인트존에서 나가세요', '#ff5b5b');
       if (p.paintT > 3) { for (const q of onCourt) q.paintT = 0; violation('공격 3초 바이얼레이션', 'Three seconds', p.pos.clone()); return; }
+    }
+    // 수비 3초 룰: 상대를 팔 길이 안에서 막고 있지 않은 수비수는 페인트존에 3초 넘게 있을 수 없음
+    for (const d of teams[1 - off]) {
+      const inPaint = d.pos.x * s3 > HX - 5.8 && Math.abs(d.pos.z) < 2.45;
+      const guarding = teams[off].some(o => distH(o.pos, d.pos) < 1.2);
+      d.paintT = inPaint && !guarding ? (d.paintT || 0) + dt : 0;
+      if (d.isUser && d.paintT > 2 && d.paintT - dt <= 2) flash('수비 3초! 상대에게 붙거나 페인트존에서 나가세요', '#ff5b5b');
+      if (d.paintT > 3) { for (const q of onCourt) q.paintT = 0; defensiveThree(d); return; }
     }
   } else for (const p of onCourt) p.paintT = 0;
   if (G.meter && !G.meter.ft) {
