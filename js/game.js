@@ -306,13 +306,15 @@ function spaceDown() {
   } else if (!u.shooting) u.jump(G.offense === 0 ? 4.6 : 4.9);
 }
 // ── 워킹(트래블링) ──
+function setPicked(p, allowed, brake) { p.picked = true; p.pivot = p.pos.clone(); p.allowed = allowed; p.stepCount = 0; p.lastFoot = Math.floor(p.ph / Math.PI); p.brakeT = brake; }
 function userPickup() { // 드리블을 멈추고 공을 잡는다 (트리플 스렛)
   const u = user();
   if (ball.holder !== u || u.shooting || u.move || u.picked || !u.grounded) return;
-  u.picked = true; u.pivot = u.pos.clone(); u.stepDist = 0; u.stepsShown = 0;
-  flash('드리블 멈춤 · 피벗만 가능 — 패스(E)·슛(Space)! 2스텝 넘게 걸으면 워킹', '#ffd21f');
+  const sp = Math.hypot(u.vel.x, u.vel.z);
+  setPicked(u, sp > 1.5 ? 2 : 0, sp > 1.5 ? 0.4 : 0);
+  flash(u.allowed ? '이동 중 공 잡음 — 2스텝 안에 멈추고 패스(E)·슛(Space)!' : '공 잡음 — 피벗만 가능, 발을 떼면 워킹!', '#ffd21f');
 }
-const TRAVEL_WHY = { picked: '공을 잡은 뒤 2스텝 초과', spin: '스핀 무브 중 축발이 떨어짐', euro: '유로스텝에서 스텝 하나 더', stepback: '스텝백에서 두 번 착지', hesi: '헤지테이션 때 공보다 발이 먼저 나감' };
+const TRAVEL_WHY = { picked: '공을 잡은 뒤 3번째 걸음', pivot: '드리블을 멈춘 뒤 축발을 뗌 (피벗만 가능)', spin: '스핀 무브 중 축발이 떨어짐', euro: '유로스텝에서 스텝 하나 더', stepback: '스텝백에서 두 번 착지', hesi: '헤지테이션 때 공보다 발이 먼저 나감' };
 function travel(p, why) {
   if (G.phase !== 'live' || ball.holder !== p || G.whistled) return;
   p.picked = false; p.move = null; p.spinA = 0;
@@ -485,7 +487,10 @@ function updateMove(p, dt) {
     if (tc && Math.random() < tc * (1.35 - p.ovr / 100) * (p.isUser ? 0.6 : 1)) { travel(p, TRAVEL_WHY[m.type]); return; }
     if (m.type === 'cross' || m.type === 'btl' || m.type === 'behind') p.dh = 1 - p.dh;
     if (m.type === 'hesi' || m.type === 'spin') p.burst = 0.7;
-    if (m.type === 'stepback') p.stepT = 0.8;
+    if (m.type === 'stepback') {
+      p.stepT = 0.8;
+      if (p.isUser) { p.vel.set(0, 0, 0); setPicked(p, 0, 0); flash('스텝백 착지 — 바로 슛(Space)·패스(E)! 다시 드리블하거나 걸으면 반칙', '#ffd21f'); }
+    }
     if (!p.isUser) {
       const d = distH(p.pos, HOOPS[p.team]);
       if (m.type === 'euro') startShot(p, d < 2.4 && p.h >= 1.98 && Math.random() < 0.5 ? pick(sig(p).dunks.filter(k => k !== 'windmill').concat(['twoHand'])) : 'euro');
@@ -1083,7 +1088,7 @@ function aiHandler(p, dt) {
     const u = user();
     if (p.team === 0 && G.call > 0 && !u.shooting) { doPass(p, u); G.call = 0; return null; }
     if (d < 2.1 && Math.random() < 0.85) { startShot(p); return null; }
-    if (G.shot < 2.3) { startShot(p); return null; }
+    if (G.shot < 2.3 || p.paintT > 2.2) { startShot(p); return null; }
     // 개인기: 수비가 붙으면 시그니처 무브
     if (dd < 1.8 && d < 9 && Math.random() < 0.32 * (0.6 + (p.ovr - 70) / 60)) { const mv = aiChooseMove(p, d, dd); if (mv && startMove(p, mv)) return null; }
     // 사이즈업 드리블 콤보 (제자리에서 레그스루/비하인드)
@@ -1157,7 +1162,10 @@ function ai(p, dt) {
   }
   else if (ball.holder === p) { target = aiHandler(p, dt); spd = p.speed * (distH(p.pos, HOOPS[p.team]) > 8 ? 0.9 : 1.02); }
   else if (ball.state === 'pass' && ball.pass.to === p) { target = ball.pass.tgt; spd = p.speed * 0.6; }
-  else if (G.offense === p.team) target = clampFront(aiOffSpot(p, dt), p.team);
+  else if (G.offense === p.team) {
+    if (p.paintT > 1.6) { const s = sgn(p.team); p.spot = V(HOOPS[p.team].x - s * 6.3, 0, (p.pos.z >= 0 ? 1 : -1) * 3.0); p.spotT = 2; } // 3초 전에 페인트존 탈출
+    target = clampFront(aiOffSpot(p, dt), p.team);
+  }
   else {
     target = aiDefSpot(p, dt);
     p.stance = G.phase === 'live' && distH(p.pos, p.man.pos) < 3.2 && distH(p.pos, target) < 1.6;
@@ -1203,10 +1211,16 @@ function userControl(p, dt) {
   if (ball.holder === p && p.picked && G.phase === 'live' && p.grounded && !p.shooting) {
     const sp = Math.hypot(p.vel.x, p.vel.z);
     if (sp > 2.6) p.vel.multiplyScalar(2.6 / sp); // 공을 든 채로는 걸음 속도
-    if (distH(p.pos, p.pivot) > 0.35) p.stepDist += sp * dt; // 피벗(제자리 회전)은 허용
-    const steps = Math.min(3, Math.floor(p.stepDist / 0.6));
-    if (steps !== p.stepsShown && steps > 0) { p.stepsShown = steps; flash(`스텝 ${steps} / 2`, steps >= 2 ? '#ff5b5b' : '#ffd21f'); }
-    if (p.stepDist > 1.3) travel(p, TRAVEL_WHY.picked);
+    if (p.brakeT > 0) { p.brakeT -= dt; p.vel.multiplyScalar(Math.max(0, 1 - dt * 8)); } // 2스텝 안에 멈추기
+    const foot = Math.floor(p.ph / Math.PI); // 실제로 발이 땅에 닿은 횟수를 센다
+    if (foot !== p.lastFoot) {
+      p.lastFoot = foot;
+      if (sp > 0.4 && distH(p.pos, p.pivot) > 0.25) {
+        p.stepCount++;
+        if (p.stepCount > p.allowed) travel(p, p.allowed ? TRAVEL_WHY.picked : TRAVEL_WHY.pivot);
+        else flash(`스텝 ${p.stepCount} / ${p.allowed}`, p.stepCount >= p.allowed ? '#ff5b5b' : '#ffd21f');
+      }
+    }
   }
   p.stance = G.phase === 'live' && G.offense !== p.team && ball.holder && distH(ball.holder.pos, p.pos) < 3.5 && !sprint;
   p.man = ball.holder;
@@ -1455,7 +1469,7 @@ function animatePerson(p, dt) {
     const back = !slide && vf < -0.4;
     const gait = sp < 2.2 ? 'walk' : sp < 5.6 ? 'run' : 'sprint';
     const stride = slide ? 0.3 : gait === 'walk' ? 0.36 : gait === 'run' ? 0.5 : 0.62;
-    p.ph += dt * sp / (D.H * stride) * Math.PI;
+    if (!(mv && (mv.type === 'euro' || (mv.type === 'stepback' && ms > 0.55)))) p.ph += dt * sp / (D.H * stride) * Math.PI;
     if (slide) {
       const o = Math.sin(p.ph);
       P.thx = [-0.5, -0.5]; P.kn = [0.95, 0.95]; P.thz = [0.22 + 0.17 * o, -0.22 + 0.17 * o]; P.spx = 0.28;
@@ -1520,6 +1534,7 @@ function animatePerson(p, dt) {
     // ── 개인기 동작 ──
     const h = p.dh, o = 1 - h, sd = mv.side;
     const lowArms = () => { P.shx = [-0.25, -0.25]; P.el = [-0.35, -0.35]; P.shz = [0.35, -0.35]; };
+    const dribArms = () => { const b = dribH(p); P.shx[h] = -0.3 - 0.3 * b; P.el[h] = -0.5 - 0.5 * b; P.shz[h] = h === 0 ? 0.2 : -0.2; P.wr[h] = 0.4 * b; P.shx[o] = -0.75; P.el[o] = -1.0; P.shz[o] = o === 0 ? 0.45 : -0.45; };
     switch (mv.type) {
       case 'cross': P.thx = [-0.45, -0.45]; P.kn = [0.85, 0.85]; P.spx = 0.32; P.shx = [-0.45, -0.45]; P.el = [-0.5, -0.5]; P.shz = [0.5, -0.5]; break;
       case 'btl': P.thx = [-0.85, 0.35]; P.kn = [0.95, 0.45]; P.spx = 0.38; lowArms(); break;
@@ -1528,18 +1543,21 @@ function animatePerson(p, dt) {
         if (ms < 0.55) { P.spx = -0.08; P.thx = [-0.15, -0.05]; P.kn = [0.25, 0.15]; P.shx[h] = -0.7; P.el[h] = -1.0; P.shx[o] = -0.4; P.el[o] = -0.6; }
         else { P.spx = 0.4; P.shx[h] = -0.4; P.el[h] = -0.7; }
         break;
-      case 'spin': P.thx = [-0.5, -0.3]; P.kn = [0.9, 0.8]; P.spx = 0.3; P.shx = [-0.7, -0.7]; P.el = [-1.4, -1.4]; P.shz = [-0.35, 0.35]; break;
+      case 'spin': P.spx = 0.3; dribArms(); break; // 스핀 중에도 드리블 (다리는 걸음 동작)
       case 'euro': {
         const st = ms < 0.5 ? 1 : -1;
         P.thz = [0.45 * (st > 0 ? 1 : 0.2), -0.45 * (st > 0 ? 0.2 : 1)]; P.thx = [-0.5, -0.5]; P.kn = [0.8, 0.8]; P.spx = 0.25;
         P.shx = [-1.0, -1.0]; P.el = [-1.5, -1.5]; P.shz = [-0.3, 0.3]; break;
       }
-      case 'stepback': P.thx[dom] = -0.6; P.kn[dom] = 0.7; P.thx[off] = 0.4; P.kn[off] = 0.5; P.spx = -0.18; P.shx = [-1.0, -1.0]; P.el = [-1.6, -1.6]; P.shz = [-0.25, 0.25]; break;
-      case 'jab': P.thx[dom] = -0.9; P.kn[dom] = 0.95; P.thx[off] = 0.2; P.kn[off] = 0.35; P.spx = 0.35; P.shx = [-0.6, -0.6]; P.el = [-1.3, -1.3]; P.shz = [-0.3, 0.3]; break;
+      case 'stepback': // 뒤로 드리블 1번 → 두 발 동시 착지(점프 스톱)하며 공을 모음
+        if (ms < 0.55) { P.spx = -0.05; dribArms(); }
+        else { P.thx = [-0.5, -0.5]; P.kn = [0.95, 0.95]; P.thz = [0.15, -0.15]; P.spx = -0.1; P.shx = [-1.0, -1.0]; P.el = [-1.6, -1.6]; P.shz = [-0.25, 0.25]; }
+        break;
+      case 'jab': P.thx[dom] = -0.9; P.kn[dom] = 0.95; P.thx[off] = 0.2; P.kn[off] = 0.35; P.spx = 0.35; dribArms(); break;
     }
   }
   else if (holding) {
-    const b = Math.abs(Math.cos(p.dph)), h = p.dh, o = 1 - h;
+    const b = dribH(p), h = p.dh, o = 1 - h;
     P.shx[h] = -0.3 - 0.3 * b; P.el[h] = -0.5 - 0.5 * b; P.shz[h] = h === 0 ? 0.2 : -0.2; P.wr[h] = 0.4 * b;
     P.shx[o] = -0.75; P.el[o] = -1.0; P.shz[o] = o === 0 ? 0.45 : -0.45; P.spx += 0.12;
     if (p.speedDrib) { P.shx[h] = -0.6 - 0.3 * b; P.el[h] = -0.3; P.shx[o] = P.shx[o] * 0.5; P.el[o] = -1.4; P.shz[o] = 0.1 * (o === 0 ? 1 : -1); } // 속공 드리블: 공을 앞으로 밀며
@@ -1590,6 +1608,8 @@ function animatePerson(p, dt) {
   if (r.ring.visible) r.ring.material.opacity = holding ? 1 : p.isUser ? 0.95 : 0.4;
 }
 
+// 드리블 높이 (1 = 손, 0 = 바닥): 손에 머무는 시간이 짧은 삼각파
+const dribH = p => 1 - Math.abs(2 * ((p.dph / Math.PI) % 1) - 1);
 function placeHeldBall(p, dt) {
   const r = p.rig; r.root.updateMatrixWorld(true);
   const dom = p.lefty ? 0 : 1, f = p.fwd;
@@ -1604,7 +1624,7 @@ function placeHeldBall(p, dt) {
     return;
   }
   const mv = p.move;
-  if (p.oob || p.ftHold || p.picked || air || p.passT > 0 || (mv && ['spin', 'euro', 'stepback', 'jab'].includes(mv.type))) {
+  if (p.oob || p.ftHold || p.picked || air || p.passT > 0 || (mv && (mv.type === 'euro' || (mv.type === 'stepback' && mv.t / mv.dur > 0.55)))) {
     ball.pos.copy(mid()).addScaledVector(f, BALL_R * 0.9);
     if (air) ball.pos.y += 0.05;
     return;
@@ -1616,7 +1636,10 @@ function placeHeldBall(p, dt) {
   p.speedDrib = sp > 4.8 && !p.dribTight;
   let freq = p.dribTight ? 9.5 : p.speedDrib ? 5.0 : 6.8 + sp * 0.4;
   if (mv && mv.type === 'hesi' && mv.t / mv.dur < 0.55) freq = 4.6;
-  p.dph += dt * freq;
+  // 드리블 박자를 발걸음에 맞춤: 달릴 때 2걸음에 1번, 걸을 때 1걸음에 1번 공이 바닥에 닿음
+  const dP = p.ph - (p.lastPhB ?? p.ph); p.lastPhB = p.ph;
+  if (sp > 0.5 && p.grounded && dP > 0 && dP < 1) p.dph += dP * (sp > 2.2 && !p.dribTight ? 0.5 : 1);
+  else p.dph += dt * freq;
   if (opp && !mv) { // 수비수 반대 손으로 자동 크로스오버
     const side = (opp.pos.x - p.pos.x) * Math.cos(p.face) - (opp.pos.z - p.pos.z) * Math.sin(p.face);
     const want = side > 0.25 ? 1 : side < -0.25 ? 0 : p.dh;
@@ -1624,7 +1647,7 @@ function placeHeldBall(p, dt) {
     if (want !== p.dh && p.crossCd <= 0 && od < 3) { p.dh = want; p.crossT = 0.26; p.crossCd = 1.1; }
   }
   const hand = pw(p.dh).clone(), other = pw(1 - p.dh).clone();
-  const b = Math.abs(Math.cos(p.dph));
+  const b = dribH(p);
   const lerpV = (a, c, s) => V(a.x + (c.x - a.x) * s, a.y + (c.y - a.y) * s, a.z + (c.z - a.z) * s);
   if (mv && (mv.type === 'btl' || mv.type === 'behind')) {
     const s = clamp(mv.t / mv.dur, 0, 1);
@@ -1775,6 +1798,17 @@ function updateLive(dt) {
       else { G.eight += dt; if (G.eight >= 8) { violation('8초 바이얼레이션', 'Eight second violation', ball.pos.clone()); return; } }
     } else if (h && ball.state === 'held' && h.team === off && h.pos.x * s < -0.15 && !h.oob) { violation('하프코트 바이얼레이션', 'Backcourt violation', h.pos.clone()); return; }
   }
+  // 공격 3초 룰: 공격팀 선수는 상대 페인트존에 3초 넘게 머물 수 없음 (슛이 공중에 있을 때는 리셋)
+  if (G.front && (ball.state === 'held' || ball.state === 'pass') && !G.whistled) {
+    const s3 = sgn(off);
+    for (const p of teams[off]) {
+      const inPaint = p.pos.x * s3 > HX - 5.8 && Math.abs(p.pos.z) < 2.45;
+      const exempt = ball.holder === p && (p.shooting || p.move);
+      p.paintT = inPaint && !exempt ? (p.paintT || 0) + dt : 0;
+      if (p.isUser && p.paintT > 2 && p.paintT - dt <= 2) flash('3초! 페인트존에서 나가세요', '#ff5b5b');
+      if (p.paintT > 3) { for (const q of onCourt) q.paintT = 0; violation('공격 3초 바이얼레이션', 'Three seconds', p.pos.clone()); return; }
+    }
+  } else for (const p of onCourt) p.paintT = 0;
   if (G.meter && !G.meter.ft) {
     G.meter.v += dt / 0.6;
     const u = user();
