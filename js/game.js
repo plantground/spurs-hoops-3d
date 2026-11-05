@@ -1868,7 +1868,9 @@ for (const [k, t] of Object.entries(TEAMS)) {
   const el = document.createElement('div');
   el.className = 'team';
   const star = t.starters.reduce((a, b) => (b.ovr > a.ovr ? b : a));
-  el.innerHTML = `<div class="ab">${k}</div><div class="nm">${t.name}</div><div class="st">에이스: ${star.n}</div>`;
+  const avg = t.starters.reduce((a, b) => a + b.ovr, 0) / t.starters.length;
+  const stars = clamp(Math.round((avg - 77.5) / 2.3) + 1, 1, 5);
+  el.innerHTML = `<div class="ab">${k}</div><div class="nm">${t.name}</div><div class="st">에이스: ${star.n}</div><div class="pw">전력 ${'★'.repeat(stars)}${'☆'.repeat(5 - stars)} <span>${stars <= 2 ? '약팀' : stars >= 5 ? '최강' : ''}</span></div>`;
   el.onclick = () => { picked = k; grid.querySelectorAll('.team').forEach(e => e.classList.remove('sel')); el.classList.add('sel'); $('startBtn').disabled = false; };
   grid.appendChild(el);
 }
