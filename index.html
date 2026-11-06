@@ -289,6 +289,21 @@ const TEAMS = {
     P('Anthony Davis', 23, 208, 87, 0.75, 1.08, 4, 'buzz', 'k', 'b', 'uni sleeveL long'),
     P('Alex Sarr', 20, 213, 79, 0.75, 0.85, 5, 'short', 'k', 'n', 'long')],
     bench: [P('Deandre Ayton', 8, 213, 78, 0.6, 1.12, 4, 'buzz', 'k', 'n'), P('Bilal Coulibaly', 0, 201, 76, 0.88, 0.95, 5, 'short', 'k', 'n', 'long'), P('Tre Johnson', 12, 196, 75, 1.08, 0.95, 4, 'short', 'k', 'n')] },
+  // ── 약팀 (2026-27 시즌 초반 최하위권, 2026-11 ESPN 순위 기준) ──
+  CHI: { name: '시카고 불스', starters: [
+    P('Josh Giddey', 3, 201, 81, 0.9, 0.92, 0, 'flow', 'b', 'n'),
+    P('Norman Powell', 24, 193, 78, 1.05, 1.0, 4, 'buzz', 'k', 'b'),
+    P('Matas Buzelis', 14, 203, 78, 0.98, 0.9, 0, 'short', 'b', 'n'),
+    P('Caleb Wilson', 8, 206, 77, 0.8, 0.95, 4, 'short', 'k', 'n'),
+    P('Nic Claxton', 9, 211, 76, 0.1, 0.92, 4, 'locs', 'k', 'n')],
+    bench: [P('Buddy Hield', 7, 193, 74, 1.15, 1.04, 4, 'buzz', 'k', 'b'), P('Isaac Okoro', 35, 193, 73, 0.9, 1.08, 4, 'short', 'k', 'n'), P('Tre Jones', 30, 185, 74, 0.85, 0.95, 4, 'short', 'k', 'n')] },
+  SAC: { name: '새크라멘토 킹스', starters: [
+    P('Darius Acuff Jr.', 5, 188, 75, 1.0, 0.95, 4, 'short', 'k', 'n'),
+    P('Zach LaVine', 8, 196, 80, 1.08, 0.94, 3, 'short', 'k', 's'),
+    P("De'Andre Hunter", 15, 201, 76, 0.98, 1.04, 4, 'buzz', 'k', 's'),
+    P('Keegan Murray', 13, 203, 78, 1.05, 1.0, 3, 'short', 'k', 'n'),
+    P('Domantas Sabonis', 11, 208, 83, 0.75, 1.14, 0, 'short', 'b', 's')],
+    bench: [P('Malik Monk', 0, 191, 77, 1.02, 0.92, 3, 'short', 'k', 'n'), P('Precious Achiuwa', 9, 203, 73, 0.5, 1.08, 5, 'short', 'k', 'n'), P('Nique Clifford', 10, 196, 73, 0.95, 0.92, 4, 'short', 'k', 'n')] },
 };
 
 // 선수별 개인기 (moves: 드리블 무브, shots: 슛 종류, dunks: 덩크 종류, tag: 화면 표시용 별명)
@@ -360,6 +375,12 @@ const SIGNATURE = {
   'Miles Bridges': { moves: ['spin', 'cross'], shots: ['pullup'], dunks: ['windmill', 'tomahawk'] },
   'Kristaps Porzingis': { moves: ['jab'], shots: ['pullup', 'fade', 'hook'], dunks: ['twoHand'] },
   'Zaccharie Risacher': { moves: ['cross'], shots: ['pullup'], dunks: ['oneHand'] },
+  'Josh Giddey': { moves: ['hesi', 'spin'], shots: ['floater', 'pullup'], dunks: ['oneHand'], tag: '장신 패서' },
+  'Matas Buzelis': { moves: ['euro', 'cross'], shots: ['pullup'], dunks: ['tomahawk', 'oneHand'] },
+  'Norman Powell': { moves: ['hesi', 'cross'], shots: ['pullup', 'floater'], dunks: ['oneHand'] },
+  'Zach LaVine': { moves: ['hesi', 'cross', 'stepback'], shots: ['pullup', 'stepback'], dunks: ['windmill', 'tomahawk'], tag: '덩크 콘테스트 챔피언' },
+  'Domantas Sabonis': { moves: ['jab', 'spin'], shots: ['hook', 'floater'], dunks: ['twoHand'], tag: '리바운드 머신' },
+  'Malik Monk': { moves: ['hesi', 'btl'], shots: ['pullup', 'floater'], dunks: ['oneHand', 'tomahawk'] },
 };
 
 
