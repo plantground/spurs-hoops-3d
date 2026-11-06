@@ -74,7 +74,7 @@ class Player {
   get grounded() { return this.jumpY === 0 && this.jumpV === 0 && this.hang <= 0; }
   jump(v) { if (this.grounded) this.jumpV = v; }
   get fwd() { return V(Math.sin(this.face), 0, Math.cos(this.face)); }
-  get speed() { return this.speedBase * (0.8 + 0.2 * clamp(this.stamina / 70, 0, 1)); }
+  get speed() { return this.speedBase * (0.8 + 0.2 * clamp(this.stamina / 70, 0, 1)) * (this.team === 1 ? 1 + (G.diff - 1) * 0.3 : 1); }
   get fatigue() { return 0.86 + 0.14 * clamp(this.stamina / 60, 0, 1); }
   dispose() { scene.remove(this.rig.root); }
 }
@@ -564,7 +564,7 @@ function releaseShot(p, q) {
   let contest = dunk ? (close < 0.8 ? 0.62 : close < 1.5 ? 0.82 : 1) : close < 0.9 ? 0.55 : close < 1.6 ? 0.75 : close < 2.6 ? 0.92 : 1.06;
   if (['fade', 'stepback', 'hook', 'floater'].includes(kind)) contest = Math.max(contest, 0.82); // 개인기 슛은 수비 영향 적음
   let prob = base * f * contest * q * p.fatigue;
-  if (p.team === 1) prob /= G.diff; else prob *= (2 - G.diff) * 0.5 + 0.5;
+  if (p.team === 1) prob *= 1 + (G.diff - 1) * 0.6; else prob *= (2 - G.diff) * 0.5 + 0.5; // 난이도가 높을수록 상대 슛은 정확, 우리 슛은 어려움
   if (fouler) prob *= 0.5;
   prob = clamp(prob, 0.02, 0.97);
   const make = Math.random() < prob;
@@ -770,7 +770,7 @@ function ftRelease(q) {
   sh.shooting = null; sh.ftHold = false; sh.follow = 0.6;
   const H = HOOPS[F.team];
   let prob = sh.ft * q * (0.9 + 0.1 * sh.fatigue);
-  if (F.team === 1) prob *= 1.04 - (G.diff - 1) * 0.3;
+  if (F.team === 1) prob *= 1 + (G.diff - 1) * 0.3;
   const make = Math.random() < clamp(prob, 0.05, 0.97);
   const tgt = H.clone();
   if (!make) { const a = Math.random() * Math.PI * 2; tgt.x += Math.cos(a) * rand(0.2, 0.28); tgt.z += Math.sin(a) * rand(0.2, 0.28); tgt.y += 0.04; }
