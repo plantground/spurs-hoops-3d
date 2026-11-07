@@ -108,7 +108,7 @@
     <div style="font-weight:800">상대 팀 선택</div>
     <div class="grid" id="teamGrid"></div>
     <div class="row">
-      <label>쿼터 길이 <select id="qlen"><option value="60">1분</option><option value="120">2분</option><option value="180" selected>3분</option><option value="300">5분</option></select></label>
+      <label>쿼터 길이 <select id="qlen"><option value="30">30초 (초고속)</option><option value="60">1분</option><option value="120">2분</option><option value="180" selected>3분</option><option value="300">5분</option><option value="420">7분</option><option value="600">10분 (FIBA)</option><option value="720">12분 (NBA 실제)</option></select></label>
       <label>난이도 <select id="diff"><option value="0.7">1단계 입문</option><option value="0.85">2단계 루키</option><option value="1" selected>3단계 프로</option><option value="1.15">4단계 올스타</option><option value="1.3">5단계 슈퍼스타</option><option value="1.45">6단계 명예의 전당</option></select></label>
       <button class="btn" id="startBtn" disabled>경기 시작</button>
     </div>
@@ -2010,7 +2010,7 @@ function endQuarter() {
   if (G.q >= 4 && G.score[0] !== G.score[1]) { gameOver(); return; }
   const endedQ = G.q;
   G.q++; G.teamFouls = [0, 0];
-  G.clock = G.q > 4 ? 60 : G.qLen;
+  G.clock = G.q > 4 ? Math.max(30, Math.round(G.qLen * 5 / 12)) : G.qLen; // 연장전은 실제 비율(5분/12분)
   ball.state = 'dead'; ball.holder = null;
   for (const p of [...roster[0], ...roster[1]]) p.stamina = Math.min(100, p.stamina + (endedQ === 2 ? 60 : 25));
   const half = G.q === 3;

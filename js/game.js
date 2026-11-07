@@ -1055,7 +1055,7 @@ function endQuarter() {
   if (G.q >= 4 && G.score[0] !== G.score[1]) { gameOver(); return; }
   const endedQ = G.q;
   G.q++; G.teamFouls = [0, 0];
-  G.clock = G.q > 4 ? 60 : G.qLen;
+  G.clock = G.q > 4 ? Math.max(30, Math.round(G.qLen * 5 / 12)) : G.qLen; // 연장전은 실제 비율(5분/12분)
   ball.state = 'dead'; ball.holder = null;
   for (const p of [...roster[0], ...roster[1]]) p.stamina = Math.min(100, p.stamina + (endedQ === 2 ? 60 : 25));
   const half = G.q === 3;
