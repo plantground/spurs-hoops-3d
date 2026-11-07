@@ -71,10 +71,26 @@ export const Sound = {
   // ── 관중 ──
   setCrowd(excite) {
     if (!this.ctx) return;
+    this.crowdOn = true;
     const t = this.ctx.currentTime;
     this.bed.gain.setTargetAtTime(0.10 + excite * 0.12, t, 0.4);
     this.roar.gain.setTargetAtTime(Math.max(0, excite - 0.25) * 0.5, t, excite > 0.6 ? 0.08 : 0.6);
   },
+  // 경기가 진행되지 않을 때(메뉴·일시정지·경기 종료) 관중 소리를 끈다. 다음 setCrowd 때 다시 켜진다.
+  quiet(stopVoice = true) {
+    if (!this.crowdOn) return;
+    this.crowdOn = false;
+    if (stopVoice && window.speechSynthesis) speechSynthesis.cancel();
+    const t = this.ctx.currentTime;
+    this.bed.gain.setTargetAtTime(0, t, 0.3);
+    this.roar.gain.setTargetAtTime(0, t, 0.3);
+  },
+  // 탭을 닫거나 숨기면 모든 소리를 멈춘다. 아나운서 음성은 탭을 닫아도 브라우저에 남아 있을 수 있어 따로 취소한다.
+  sleep() {
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+  },
+  wake() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); },
   cheer(big = 1) { this.noise(2.2 * big, 0.25 * big, 1300, 0.5, 'bandpass', 0, 0.15); for (let i = 0; i < 18 * big; i++) this.noise(0.03, 0.08, 2500 + Math.random() * 1500, 2, 'bandpass', Math.random() * 1.6); },
   groan() { this.noise(1.2, 0.14, 380, 0.8, 'lowpass', 0, 0.2); },
   oohh() { this.noise(0.9, 0.12, 700, 3, 'bandpass', 0, 0.1); },
@@ -91,7 +107,7 @@ export const Sound = {
 
   // ── 장내 아나운서 (영어 음성) ──
   say(text, prio = false) {
-    if (!this.voice || this.muted || !window.speechSynthesis) return;
+    if (!this.voice || this.muted || !window.speechSynthesis || document.hidden) return;
     if (prio) speechSynthesis.cancel(); else if (speechSynthesis.speaking) return;
     const u = new SpeechSynthesisUtterance(text);
     if (this.voices && this.voices.length) u.voice = this.voices.find(v => /male|david|guy|mark/i.test(v.name)) || this.voices[0];
@@ -99,3 +115,7 @@ export const Sound = {
     speechSynthesis.speak(u);
   },
 };
+
+document.addEventListener('visibilitychange', () => { document.hidden ? Sound.sleep() : Sound.wake(); });
+window.addEventListener('pagehide', () => Sound.sleep());
+window.addEventListener('pageshow', () => Sound.wake());

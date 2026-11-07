@@ -1083,6 +1083,7 @@ function gameOver() {
   $('overStats').innerHTML = boxScoreHtml();
   if (win) { Sound.cheer(1.5); G.excite = 1; Sound.say('Ballgame! The Spurs win!', true); } else Sound.say('That is the final.', true);
   setTimeout(() => { $('over').style.display = 'flex'; }, 1500);
+  setTimeout(() => { if (G.state === 'over') Sound.quiet(false); }, 3500); // 환호가 잦아든 뒤 결과 화면은 조용하게
 }
 function boxScoreHtml() {
   const row = p => { const b = p.box; return `<tr${p.d.n === 'Victor Wembanyama' ? ' class="me"' : ''}><td>#${p.num} ${p.name}</td><td>${Math.round(b.min)}</td><td><b>${b.pts}</b></td><td>${b.reb}</td><td>${b.ast}</td><td>${b.stl}</td><td>${b.blk}</td><td>${b.fgm}-${b.fga}</td><td>${b.tpm}-${b.tpa}</td><td>${b.ftm}-${b.fta}</td><td>${p.pf}</td></tr>`; };
@@ -1776,10 +1777,10 @@ function update(dt) {
   for (const n of nets) { if (n.t > 0) { n.t -= dt; const k = 1 + Math.sin(n.t * 30) * 0.15 * n.t; n.mesh.scale.set(1 / k, k, 1 / k); } else n.mesh.scale.set(1, 1, 1); }
   for (const m of ledMats) m.map.offset.x += dt * 0.04;
   crowd.update(dt, G.excite, G.crowdMode);
-  if (G.state === 'menu') return;
-  if (G.paused || G.subPanel) return;
+  if (G.state === 'menu' || G.paused) { Sound.quiet(); return; }
+  if (G.subPanel) return;
   G.excite += (0.18 - G.excite) * Math.min(1, dt * 0.35);
-  G.crowdT -= dt; if (G.crowdT <= 0) { Sound.setCrowd(G.excite); G.crowdT = 0.2; }
+  G.crowdT -= dt; if (G.crowdT <= 0 && G.state !== 'over') { Sound.setCrowd(G.excite); G.crowdT = 0.2; }
   G.crowdMode = '';
   if (G.phase === 'live' && G.offense === 1 && ball.holder && ball.holder.pos.x * sgn(1) > 0) {
     G.crowdMode = 'clap'; G.chantT -= dt;

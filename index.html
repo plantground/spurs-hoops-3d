@@ -922,10 +922,26 @@ const Sound = {
   // ── 관중 ──
   setCrowd(excite) {
     if (!this.ctx) return;
+    this.crowdOn = true;
     const t = this.ctx.currentTime;
     this.bed.gain.setTargetAtTime(0.10 + excite * 0.12, t, 0.4);
     this.roar.gain.setTargetAtTime(Math.max(0, excite - 0.25) * 0.5, t, excite > 0.6 ? 0.08 : 0.6);
   },
+  // 경기가 진행되지 않을 때(메뉴·일시정지·경기 종료) 관중 소리를 끈다. 다음 setCrowd 때 다시 켜진다.
+  quiet(stopVoice = true) {
+    if (!this.crowdOn) return;
+    this.crowdOn = false;
+    if (stopVoice && window.speechSynthesis) speechSynthesis.cancel();
+    const t = this.ctx.currentTime;
+    this.bed.gain.setTargetAtTime(0, t, 0.3);
+    this.roar.gain.setTargetAtTime(0, t, 0.3);
+  },
+  // 탭을 닫거나 숨기면 모든 소리를 멈춘다. 아나운서 음성은 탭을 닫아도 브라우저에 남아 있을 수 있어 따로 취소한다.
+  sleep() {
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+  },
+  wake() { if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) this.ctx.resume(); },
   cheer(big = 1) { this.noise(2.2 * big, 0.25 * big, 1300, 0.5, 'bandpass', 0, 0.15); for (let i = 0; i < 18 * big; i++) this.noise(0.03, 0.08, 2500 + Math.random() * 1500, 2, 'bandpass', Math.random() * 1.6); },
   groan() { this.noise(1.2, 0.14, 380, 0.8, 'lowpass', 0, 0.2); },
   oohh() { this.noise(0.9, 0.12, 700, 3, 'bandpass', 0, 0.1); },
@@ -942,7 +958,7 @@ const Sound = {
 
   // ── 장내 아나운서 (영어 음성) ──
   say(text, prio = false) {
-    if (!this.voice || this.muted || !window.speechSynthesis) return;
+    if (!this.voice || this.muted || !window.speechSynthesis || document.hidden) return;
     if (prio) speechSynthesis.cancel(); else if (speechSynthesis.speaking) return;
     const u = new SpeechSynthesisUtterance(text);
     if (this.voices && this.voices.length) u.voice = this.voices.find(v => /male|david|guy|mark/i.test(v.name)) || this.voices[0];
@@ -950,6 +966,10 @@ const Sound = {
     speechSynthesis.speak(u);
   },
 };
+
+document.addEventListener('visibilitychange', () => { document.hidden ? Sound.sleep() : Sound.wake(); });
+window.addEventListener('pagehide', () => Sound.sleep());
+window.addEventListener('pageshow', () => Sound.wake());
 
 
 // ───── game.js ─────
@@ -2038,6 +2058,7 @@ function gameOver() {
   $('overStats').innerHTML = boxScoreHtml();
   if (win) { Sound.cheer(1.5); G.excite = 1; Sound.say('Ballgame! The Spurs win!', true); } else Sound.say('That is the final.', true);
   setTimeout(() => { $('over').style.display = 'flex'; }, 1500);
+  setTimeout(() => { if (G.state === 'over') Sound.quiet(false); }, 3500); // 환호가 잦아든 뒤 결과 화면은 조용하게
 }
 function boxScoreHtml() {
   const row = p => { const b = p.box; return `<tr${p.d.n === 'Victor Wembanyama' ? ' class="me"' : ''}><td>#${p.num} ${p.name}</td><td>${Math.round(b.min)}</td><td><b>${b.pts}</b></td><td>${b.reb}</td><td>${b.ast}</td><td>${b.stl}</td><td>${b.blk}</td><td>${b.fgm}-${b.fga}</td><td>${b.tpm}-${b.tpa}</td><td>${b.ftm}-${b.fta}</td><td>${p.pf}</td></tr>`; };
@@ -2731,10 +2752,10 @@ function update(dt) {
   for (const n of nets) { if (n.t > 0) { n.t -= dt; const k = 1 + Math.sin(n.t * 30) * 0.15 * n.t; n.mesh.scale.set(1 / k, k, 1 / k); } else n.mesh.scale.set(1, 1, 1); }
   for (const m of ledMats) m.map.offset.x += dt * 0.04;
   crowd.update(dt, G.excite, G.crowdMode);
-  if (G.state === 'menu') return;
-  if (G.paused || G.subPanel) return;
+  if (G.state === 'menu' || G.paused) { Sound.quiet(); return; }
+  if (G.subPanel) return;
   G.excite += (0.18 - G.excite) * Math.min(1, dt * 0.35);
-  G.crowdT -= dt; if (G.crowdT <= 0) { Sound.setCrowd(G.excite); G.crowdT = 0.2; }
+  G.crowdT -= dt; if (G.crowdT <= 0 && G.state !== 'over') { Sound.setCrowd(G.excite); G.crowdT = 0.2; }
   G.crowdMode = '';
   if (G.phase === 'live' && G.offense === 1 && ball.holder && ball.holder.pos.x * sgn(1) > 0) {
     G.crowdMode = 'clap'; G.chantT -= dt;
