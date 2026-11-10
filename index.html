@@ -1222,7 +1222,7 @@ function updateRefs(dt) {
   for (const r of refs) {
     let tg;
     if (G.phase === 'review' && G.rv && !G.rv.replayOnly) tg = V(-1.2 + refs.indexOf(r) * 1.2, 0, -8.35);
-    else if (G.phase === 'jump' && r.role === 'center') tg = V(0, 0, 0.95);
+    else if (G.phase === 'jump' && r.role === 'center') tg = V(0, 0, G.jb.stage === 'ready' ? TOSS.rz : 1.9); // 공을 띄운 뒤에는 뒤로 물러남
     else if (r.role === 'lead') tg = V(s * (HX + 0.75), 0, clamp(ball.pos.z * 0.3 - 2.8, -6, 1));
     else if (r.role === 'trail') tg = V(clamp(ball.pos.x - s * 4, -12, 12), 0, HZ + 0.85);
     else tg = V(clamp(ball.pos.x - s * 1.5, -11, 11), 0, -HZ - 0.8);
@@ -1233,6 +1233,7 @@ function updateRefs(dt) {
     if (r.sig) { r.sig.t -= dt; if (r.sig.target) look = r.sig.target.pos; if (r.sig.t <= 0) r.sig = null; }
     const want = Math.atan2(look.x - r.pos.x, look.z - r.pos.z);
     r.face += wrapA(want - r.face) * Math.min(1, dt * 6);
+    if (G.phase === 'jump' && r.role === 'center' && G.jb.stage === 'ready') r.face = Math.PI; // 공을 든 채 센터 서클 정면을 봄
   }
 }
 
@@ -1762,6 +1763,10 @@ function ftRelease(q) {
 function nextFT() { const F = G.ft; F.i++; F.stage = 'setup'; F.t = 0.8; G.phase = 'ft'; ball.state = 'dead'; }
 
 // ───────────────────────── jump ball ─────────────────────────
+// 심판이 두 손으로 가슴 앞에 공을 들고 있다가 두 센터 사이로 곧게 띄워 올린다
+const TOSS = { rz: 0.8, y: 1.45, z: 0.36 };
+TOSS.vy = Math.sqrt(6.4 * 6.4 + 2 * GRAV * (1.9 - TOSS.y)); // 최고점 높이는 예전과 같게
+TOSS.vz = -TOSS.z / (TOSS.vy / GRAV);                        // 최고점에서 정확히 센터 서클 중앙
 function startJumpBall() {
   G.phase = 'jump';
   for (const p of onCourt) resetMotion(p);
@@ -1771,7 +1776,7 @@ function startJumpBall() {
     const others = [[-s * 2.3, 1.7], [-s * 2.3, -1.7], [s * 2.4, 2.7], [s * 2.4, -2.7]];
     teams[t].slice(0, 4).forEach((p, i) => { p.pos.set(others[i][0], 0, others[i][1]); p.face = Math.atan2(s, 0); });
   }
-  refs[0].pos.set(0, 0, 0.95); refs[0].vel.set(0, 0, 0);
+  refs[0].pos.set(0, 0, TOSS.rz); refs[0].vel.set(0, 0, 0); refs[0].face = Math.PI;
   G.jb = { stage: 'ready', t: 2.4, tossT: 0, aiJumped: false, aiAt: 0.27 + rand(-0.12, 0.12) / G.diff };
   ball.state = 'dead'; ball.holder = null;
   msg('점프볼!', '#ffd21f', '공이 가장 높이 올라갈 때 Space!', 2.4);
@@ -1784,12 +1789,12 @@ function updateJump(dt) {
   refs[0].sig = { type: J.stage === 'ready' ? 'hold' : 'toss', t: 0.2 };
   if (J.stage === 'ready') {
     J.t -= dt;
-    const pm = refs[0].rig.palm[1].getWorldPosition(V()); ball.pos.copy(pm).add(V(0, 0.08, -0.08)); ball.vel.set(0, 0, 0);
+    ball.pos.set(refs[0].pos.x, TOSS.y, refs[0].pos.z - (TOSS.rz - TOSS.z)); ball.vel.set(0, 0, 0);
     if (J.t <= 0) {
-      J.stage = 'air'; J.tossT = 0; J.aiJumped = false; ball.state = 'toss'; ball.pos.set(0, 1.9, 0); ball.vel.set(0, 6.4, 0); Sound.whistle();
+      J.stage = 'air'; J.tossT = 0; J.aiJumped = false; ball.state = 'toss'; ball.pos.set(0, TOSS.y, TOSS.z); ball.vel.set(0, TOSS.vy, TOSS.vz); Sound.whistle();
       // AI: 공이 내려오며 자신의 최고 도달점에 오는 순간에 맞춰 점프 (난이도에 따라 오차)
       const v = 4.6, g = GRAV * 1.05, peakReach = c1.reach + v * v / (2 * g), up = v / g;
-      const apexT = 6.4 / GRAV, apexY = 1.9 + 6.4 * apexT - 0.5 * GRAV * apexT * apexT;
+      const apexT = TOSS.vy / GRAV, apexY = TOSS.y + TOSS.vy * apexT - 0.5 * GRAV * apexT * apexT;
       const tHit = peakReach >= apexY ? apexT : apexT + Math.sqrt(2 * (apexY - peakReach + 0.05) / GRAV);
       J.aiAt = Math.max(0, tHit - up + rand(-0.14, 0.14) / G.diff); J.aiV = v;
     }
@@ -2580,7 +2585,7 @@ function animatePerson(p, dt) {
     else if (s.type === 'three') { P.shx[1] = -3.0; P.el[1] = -0.1; P.shz[1] = -0.3; }
     else if (s.type === 'three2') { P.shx = [-3.0, -3.0]; P.el = [-0.1, -0.1]; P.shz = [0.25, -0.25]; }
     else if (s.type === 'toss') { P.shx[1] = -2.9; P.el[1] = -0.1; }
-    else if (s.type === 'hold') { P.shx[1] = -1.1; P.el[1] = -1.2; }
+    else if (s.type === 'hold') { P.shx = [-0.95, -0.95]; P.el = [-0.75, -0.75]; P.shz = [-0.32, 0.32]; } // 두 손으로 공을 받쳐 듦
     else if (s.type === 'sub') { P.shx[1] = -2.6; P.el[1] = -0.4 + Math.sin(T * 10) * 0.45; }
     else if (s.type === 'timeout') { P.shx[1] = -3.05; P.el[1] = -0.05; P.shx[0] = -2.7; P.shz[0] = -1.4; P.el[0] = -0.1; } // T 모양
   }
